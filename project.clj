@@ -39,7 +39,7 @@
   :plugins [[lein-environ "1.0.1"]
             [lein-asset-minifier "0.2.2"]
             ; check for new fun things
-            [lein-ancient "0.6.7"
+            [lein-ancient "0.6.7"]
             ]
 
   :ring {:handler web4.handler/app
