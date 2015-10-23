@@ -25,6 +25,8 @@
                  ; get data
                  [org.clojure/core.async "0.1.346.0-17112a-alpha"]
                  [cljs-http "0.1.37"]
+                 [cljs-ajax "0.5.0"]
+                 [cheshire  "5.5.0"]
                 
                  ; deal with database
                  [yesql "0.5.1"]
