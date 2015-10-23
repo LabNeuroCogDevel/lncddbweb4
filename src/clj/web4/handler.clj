@@ -11,6 +11,7 @@
             
             ;;
             [yesql.core :refer [defqueries]]
+            ; send json out
             [cheshire.core :as json]
 
            ))
@@ -25,6 +26,17 @@
 ;  * list-people-by-name
 ;  * list-people-by-name-study-enroll
 (defqueries "sql/people.sql" {:connection db-spec})
+;  * list-visits-by-pid
+(defqueries "sql/visits.sql" {:connection db-spec})
+
+;; http://blog.00null.net/clojure-yesql-and-postgesql-arrays/
+; posgresql arrays 
+;
+; (defn get-snippet [snippet-id]
+;   (jdbc/with-db-transaction [conn db-spec]
+;       (let [row (first (-get-snippet conn snippet-id))]
+;             (update-in row [:tags] (fn [ts] (vec (.getArray ts)))))))
+
 ;;;;
 
 (defn listsubj 
@@ -34,6 +46,34 @@
   (println subjname (list-people-by-name {:name subjname}  )  )
   (list-people-by-name {:name subjname}  )
 )
+
+ 
+(defn pep-search
+  "search subjects and get visit summaries"
+  [searchmap]
+  (println searchmap)
+  (def defsearch {:study "%" :etype "%" :hand "%" :fullname "%" :sex "%" :mincount 0 :minage 0 :maxage 200})
+  (def search 
+   (update-in 
+      (merge defsearch (select-keys searchmap  (keys defsearch) ))  
+      [:mincount :minage :maxage] 
+      Integer. ))
+
+  (println search)
+  (def res (list-people-by-name-study-enroll search))
+
+  ;(html5 (list-people-by-name db-spec subjname ))
+  (println  res ) 
+  res
+)
+
+(defn visit-search
+  "look for visits given a pid"
+  [pid]
+  ;TODO checks
+  (list-visits-by-pid {:pid (Integer. pid)} )
+) 
+
 
 
 
@@ -63,6 +103,9 @@
   (GET "/" [] home-page)
   ;http://0.0.0.0:3000/lists?n=william
   (GET "/lists" [n] (json-response (listsubj n) ))
+  ;
+  (GET "/people" {params :params} (json-response (pep-search params) ))
+  (GET "/person/:pid/visits" [pid] (json-response (visit-search pid) ))
   (resources "/")
   (not-found "Not Found"))
 

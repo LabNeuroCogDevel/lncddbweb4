@@ -13,9 +13,25 @@
 ;; -------------------------
 ;; Models?
 
+;--- visit
+
+(def visit-state (atom [{:vid 0}]))
+
+(defn set-visit! [pid]
+  (GET (str "/person/" pid "/visits" ) 
+       :keywords? true 
+       :response-format :json 
+       :handler (fn [response] 
+            (js/console.log "response:" (type response) (str response) )
+            (reset! visit-state response)
+       )
+  )
+)
+
+;--- people
 (defn render-row [si]
  ^{:key (:pid si)} 
-  [:tr
+  [:tr {:on-click #(set-visit! (:pid si))}
    [:td (si :fname) " " (si :lname) ]
    [:td (si :age) ]
    [:td (si :dob) ]
@@ -26,11 +42,14 @@
 
 ; start out with a people search result
 (def pep (atom [{:pid 0 :fname "Searching" :lname "For People" } ] ))
-(def pep-search-state (atom {:minage 0 :maxage 100 :name "Will" :sex "" :hand "" :nvisit 0 } ))
+(def pep-search-state (atom {:study "" :etype "" :hand "R" :fullname "Will" :sex "%" :mincount 0 :minage 0 :maxage 200}))
+; (def pep-search-state (atom {:minage 0 :maxage 100 :fullname "Will" :sex "%" :hand "%" :mincount 0 } ))
 
 
 (defn get-pep-search! []
-  (GET (str "/lists?n=" (:name @pep-search-state )) 
+  ;(GET (ajax.core/uri-with-params "/people" @pep-search-state) 
+  (GET (str "/lists?n=" (:fullname @pep-search-state )) 
+  ;(GET (ajax.core/uri-with-params "/lists" pep-search-state) 
        :keywords? true 
        :response-format :json 
        :handler (fn [response] 
@@ -47,9 +66,12 @@
 )
 
 (defn pep-search-comp []
-  [:input {:type "text" 
-           :value (:name @pep-search-state)
-           :on-change #(update-pep-search! :name (-> % .-target .-value ) )}]
+  ;(get-pep-search!)
+  (for [k [:fullname :sex :hand] ]
+    [:input {:type "text" 
+             :value (k @pep-search-state)
+             :on-change #(update-pep-search! k (-> % .-target .-value ) )}]
+  )
 )
 (defn pep-list-comp []
   [:table 
@@ -64,6 +86,26 @@
     [:div (pep-list-comp) ]
   ]
 )
+
+
+;; -------
+;; Visit
+(defn visit-idv-comp [visit]
+  (str visit)
+)
+(defn visit-comp []
+ [:div [:h1 {:class "visit-cntnr"} "Visits" ]
+       (map visit-idv-comp @visit-state) ]
+)
+
+;; -------- all combin
+(defn pep-visit-comp []
+ [:div 
+   (pep-comp)
+   (visit-comp)
+ ]
+)
+
 ;; -------------------------
 ;; Views
 
@@ -89,7 +131,7 @@
   (session/put! :current-page #'about-page))
 
 (secretary/defroute "/list" [n]
-  (session/put! :current-page #'pep-comp ))
+  (session/put! :current-page #'pep-visit-comp ))
 
 ;; -------------------------
 ;; History
