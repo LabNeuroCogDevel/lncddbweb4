@@ -1,0 +1,19 @@
+-- name: list-people-by-name
+-- list people given a name
+select * from people where concat(firstName," ",lastName) like concat("%",:name,"%")
+
+-- name: list-people-by-name-study-enroll
+-- list people given a name
+select p.*,
+ datediff(now(),dob)/365.25 as curage 
+ max(v.visitdate) as lastvisit,
+ count(distinct v.visitid) as numvisits,
+ group_concat(distinct pe.value) as ids 
+  from people p 
+  left join peopleEnroll pe on pe.peopleid=p.peopleid 
+  left join visits v on p.peopleid = v.peopleid
+  left join visitsstudies vs on vs.visitid = v.visitid 
+  where concat(firstName," ",lastName) like concat("%",:name,"%") and
+    vs.studyName like :study and
+    enrollType like :enrolltype
+  group by peopleid
