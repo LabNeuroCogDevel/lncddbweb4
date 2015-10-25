@@ -35,6 +35,9 @@
 
                  ; authentication
                  [com.cemerick/friend "0.2.1" :exclusions [org.clojure/core.cache] ]
+                
+                 ; google cal
+                 [google-apps-clj "0.2.1"]
                  
                  ]
 
