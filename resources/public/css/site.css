@@ -1,5 +1,9 @@
 body {
   font-family: 'Helvetica Neue', Verdana, Helvetica, Arial, sans-serif;
+}
+/*
+body {
+  font-family: 'Helvetica Neue', Verdana, Helvetica, Arial, sans-serif;
   max-width: 600px;
   margin: 0 auto;
   padding-top: 72px;
@@ -23,6 +27,7 @@ h2 {
 h3 {
   font-size: 1.5em
 }
+*/
 
 a {
   text-decoration: none;
@@ -32,3 +37,113 @@ a {
 a:hover {
   text-decoration: underline;
 }
+
+.monospaced {
+ font-family: "Courier New", Courier, monospace;
+}
+.dob {
+ display: block;
+ float: left;
+ font-size: 9px;
+ padding-left:1em;
+ padding-bottom: 5px;
+}
+tr {
+ border-bottom: 1px solid #aaa;
+}
+
+.search-cntnr {
+ text-align:left;
+ display: inline-block;
+ float:left;
+ max-width: 500px
+}
+
+.visit-cntnr {
+ /*text-align:right;*/
+ display: inline-block;
+ float:left;
+ max-width: 500px
+}
+
+.visitdate {
+ font-size: 16px;
+ font-weight: bold;
+}
+.visitinfo {
+ font-weight: bold;
+ /*border-color: #f44;*/
+ border-left: solid 2px;
+ border-top: solid 2px;
+ border-bottom: solid 2px;
+}
+
+.Scan {
+ border-left: 4px solid #4f4;
+ padding-left: 2px;
+ margin-bottom: 4px;
+}
+.Behavioral {
+ border-left: 4px solid #44f;
+ padding-left: 2px;
+ margin-bottom: 4px;
+}
+.MEG {
+ border-left: 4px solid #fa4;
+ padding-left: 2px;
+ margin-bottom: 4px;
+}
+
+.visittask {
+ display: inline-block;
+ padding: 0 .5em;
+ font-weight: bold;
+}
+.link {
+ color: #09f;
+}
+
+li.visititem {
+ display: block;
+ padding: 1em;
+}
+
+/* ids of any time aren't that important */
+.id {
+ font-size: small;
+ color: #777;
+ display: inline;
+ padding-left: 0.5em;
+}
+
+.visitnotes {
+ display: block;
+ padding: .5em;
+}
+
+.inputdiv > label {
+ padding-right: 1em;
+ float:left;
+}
+.inputdiv > label {
+ /*float:right;*/
+}
+
+.drop-subject {
+  background-color: #d55;
+}
+.drop-somevisits{
+  background-color: #daa;
+}
+.drop-visit{
+  background-color: #faa;
+}
+.search-id {
+ font-size: 6px;
+ display: block;
+}
+
+.search-selected {
+ border: 3px solid green;
+}
+

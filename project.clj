@@ -35,6 +35,11 @@
 
                  ; authentication
                  [com.cemerick/friend "0.2.1" :exclusions [org.clojure/core.cache] ]
+
+                 ; pretty dates in js
+                 [com.andrewmcveigh/cljs-time "0.3.14"]
+                 ; pretty colors
+                 [rm-hull/inkspot "0.0.1-SNAPSHOT"]
                  
                  ]
 

@@ -46,7 +46,8 @@
   "list of all subjects matching subjname"
   [subjname]
   ;(html5 (list-people-by-name db-spec subjname ))
-  (println subjname (list-people-by-name {:name subjname}  )  )
+  (println "listsubj for name: " subjname)
+  ;(println subjname (list-people-by-name {:name subjname}  )  )
   (list-people-by-name {:name subjname}  )
 )
 
@@ -54,15 +55,20 @@
 (defn pep-search
   "search subjects and get visit summaries"
   [searchmap]
-  (println searchmap)
-  (def defsearch {:study "%" :etype "%" :hand "%" :fullname "%" :sex "%" :mincount 0 :minage 0 :maxage 200})
-  (def search 
-   (update-in 
-      (merge defsearch (select-keys searchmap  (keys defsearch) ))  
-      [:mincount :minage :maxage] 
-      int ))
+  (def defsearch {:study "%" :eid "%" :hand "%" :fullname "%" :sex "%" :mincount 0 :minage 0 :maxage 200 :offset 0})
+  (def mparms (merge defsearch (select-keys searchmap  (keys defsearch) ))  )
 
-  (println search)
+  (println "have: " mparms) 
+
+  ; make numbers where we should have numbers
+  (def search-int 
+     (reduce (fn [x y] (update-in x [y]  #(Integer. %) )) mparms [:mincount :minage :maxage :offset] )
+  )
+  (def search
+     (reduce (fn [x y] (update-in x [y]  #(if (nil? %) "%" %) )) search-int [:study :etype :hand :fullname :sex] )
+  )
+
+  (println "searching: " search)
   (def res (list-people-by-name-study-enroll search))
 
   ;(html5 (list-people-by-name db-spec subjname ))
@@ -75,7 +81,8 @@
   ; all notes
   (def nt (list-notes-by-vid {:vid (:vid v)}))
   ; all tasks
-  (def ts (map #(:task %) (list-tasks-by-vid {:vid (:vid v)})))
+  ;(def ts (map #(:task %) (list-tasks-by-vid {:vid (:vid v)})))
+  (def ts (list-tasks-by-vid {:vid (:vid v)}))
 
   (println (v :vid) (count nt) (count ts) )
 

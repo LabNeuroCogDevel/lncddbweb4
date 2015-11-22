@@ -7,48 +7,131 @@
 
               ;get data
               [ajax.core :refer [GET POST] ]
+              ; use data
+              [cljs-time.core :as tc ]
+              [cljs-time.format :as tf ]
+              [cljs.pprint :as pp ]
+              ; pretty colors
+              [inkspot.color-chart :as cc]
     )
     (:import goog.History))
 
+
+;;; helpers
+;(def colorspctm (cc/gradient :red :green 10) )
+(def colorspctm (cc/color-mapper (cc/ui-gradient :miaka 10) 0 5))
+; see also :drakula @ https://github.com/rm-hull/inkspot
+
+(defn nilor [in defval]
+  (if (nil? in) defval in)
+)
+(defn roundstr [fltstr n]
+  (.toFixed (nilor (float fltstr) 0) n)
+)
+
+; dob is a string, make it a date
+; and return a rounded string
+(defn notime-datestr [dob]
+   (tf/unparse (tf/formatters :year-month-day)  
+               (if (nil? dob)
+                 (tc/today-at 00 00)
+                 (tf/parse (tf/formatters :date-time-no-ms) dob)
+               )
+          )  
+)
+
+; dispatch a url and set the address bar to that
+; url is what comes after 'http.../#'
+(defn gotohash [url]
+ (aset (.-location js/window) "hash" url)
+ (secretary/dispatch! url)
+)
 ;; -------------------------
 ;; Models?
 
 ;--- visit
 
-(def visit-state (atom [{:vid 0}]))
+; contains all the visits
+(def person-state (atom {:pid 0 :visits []}))
+; contains how to display the visits
+(def visit-state-display (atom {:collapsed false}))
 
-(defn set-visit! [pid]
+(defn set-person-visits! [pid]
+  (js/console.log  pid)
   (GET (str "/person/" pid "/visits" ) 
        :keywords? true 
        :response-format :json 
        :handler (fn [response] 
             (js/console.log "response:" (type response) (str response) )
-            (reset! visit-state response)
+            (swap! person-state assoc :pid pid)
+            (swap! person-state assoc :visits response)
        )
   )
 )
 
-;--- people
-(defn render-row [si]
- ^{:key (:pid si)} 
-  [:tr {:on-click #(set-visit! (:pid si))}
-   [:td (si :fname) " " (si :lname) ]
-   [:td (si :age) ]
-   [:td (si :dob) ]
-   [:td (si :sex) ]
-   [:td (si :hand) ]
-   ;[:td (first (si :ids)) ]
-])
+;--- note
+(defn render-note [ni]
+ ^{:key (:nid ni)} 
+ [:div 
+   [:div  (:note ni) " - " (:ra ni) " " [:span {:class "id"} (:nid ni) ]   ]
+ ]
+)
 
+;--- people
 ; start out with a people search result
 (def pep (atom [{:pid 0 :fname "Searching" :lname "For People" } ] ))
-(def pep-search-state (atom {:study "" :etype "" :hand "R" :fullname "Will" :sex "%" :mincount 0 :minage 0 :maxage 200}))
+(def pep-search-state (atom {:study "" :eid "" :hand "" :fullname "" :sex "" :mincount 0 :minage 0 :maxage 200 :offset 0 :selected-pid 0}))
 ; (def pep-search-state (atom {:minage 0 :maxage 100 :fullname "Will" :sex "%" :hand "%" :mincount 0 } ))
 
 
+; -- before we modified every vector
+; -- now we are watching pep-search-state inside the view
+;(defn set-select-on-pid [plist pid]
+; (map (fn[p]
+;   (if (= pid (:pid p) )
+;       (assoc p :select true) 
+;       (assoc p :select false) )
+; ) plist)
+;)
+
+(defn select-person! [pid]
+  ; setup visit stuff
+  (set-person-visits! pid)
+  ; add selected to this one
+  ; remove selected from anyone else
+  ; -- update state, updates css
+  (swap! pep-search-state assoc :selected-pid pid)
+  ; -- update each vector
+  ;(swap! pep set-select-on-pid pid pep)
+)
+
+
+(defn render-person-row [si]
+ ^{:key (:pid si)} 
+  ;[:tr  { :on-click #(set-person-visits! (:pid si))}
+  [:tr  { :on-click #(select-person! (:pid si))
+          :class (str "drop-" (:maxdrop si)
+                  (when (= (:selected-pid @pep-search-state) (:pid si) )
+                        " search-selected")) }
+
+   [:td (map (fn[id] [:div {:class "search-id"} id ]) (:ids si) ) ]
+   [:td [:div (si :fname) " " (si :lname) ]
+       [:div {:class "dob"} (notime-datestr (si :dob)) ]
+   ]
+   [:td {:class "monospaced"}
+         (roundstr     (si :curage) 1 ) " " 
+         (si :sex) " " 
+         (si :hand) ]
+   [:td (notime-datestr (:lastvisit si))]
+   [:td (:numvisits si)]
+   ;[:td (str si) ]
+   ;[:td (first (si :ids)) ]
+])
+
+
 (defn get-pep-search! []
-  ;(GET (ajax.core/uri-with-params "/people" @pep-search-state) 
-  (GET (str "/lists?n=" (:fullname @pep-search-state )) 
+  (GET (ajax.core/uri-with-params "/people" @pep-search-state) 
+  ;(GET (str "/people?fullname=" (:fullname @pep-search-state )) 
   ;(GET (ajax.core/uri-with-params "/lists" pep-search-state) 
        :keywords? true 
        :response-format :json 
@@ -60,50 +143,198 @@
 )
 
 (defn update-pep-search! [k v] 
-  (js/console.log "update!" (str k) (str v) )
+  ;(js/console.log "update!" (str k) (str v))
   (swap! pep-search-state assoc k v )
+
+  ;(when (> (count (str v)) 3)  
+     (js/console.log "searching:" (str v) (count v) )
+     (get-pep-search!)
+  ;)
+)
+(defn incoffset! []
+  (swap! pep-search-state update-in [:offset]  #(+ 10 %))
   (get-pep-search!)
 )
-
-(defn pep-search-comp []
-  ;(get-pep-search!)
-  (for [k [:fullname :sex :hand] ]
+(defn updatesearch [pepkey]
+ (update-pep-search! pepkey (-> % .-target .-value ) )
+)
+(defn select-dropdown [pepkey opts f]
+  [:select {  :on-change #(f pepkey) }
+   (map (fn[k] [:option {:key k} k]) opts)
+  ]
+)
+(defn search-textfield [pepkey size]
     [:input {:type "text" 
-             :value (k @pep-search-state)
-             :on-change #(update-pep-search! k (-> % .-target .-value ) )}]
-  )
+             :size size
+             :value (pepkey @pep-search-state)
+             :on-change #(updatesearch pepkey) }]
+)
+
+; STUDY: TODO: pull from db instead of hardcode
+(defn study-dropdown [f]
+  (select-dropdown :study ["" "RewardR01" "RewardR21" "MEGEmo" "CogR01"] #(f :study))
+)
+(defn pep-search-form []
+  ;(get-pep-search!)
+  ;INPUTS
+  [:div 
+    ; ID
+    (search-textfield :eid 5)
+    ; NAME
+    (search-textfield :fullname 20)
+    ; AGE
+    (search-textfield :minage 2)
+    (search-textfield :maxage 2)
+    ;STUDY
+    (study-dropdown updatesearch)
+    ; HAND
+    (select-dropdown :hand ["" "R" "L" "U"] updatesearch)
+    ; Sex
+    (select-dropdown :hand ["" "M" "F" "U"] updatesearch)
+    ; OFFSET
+    [:input {:type "button" :value (:offset @pep-search-state)
+             :on-click incoffset! }]
+ ]
 )
 (defn pep-list-comp []
-  [:table 
-    (map render-row @pep)
+  [:table  {:class "table table-striped table-condensed table-hover"} 
+    [:thead [:tr (map (fn[x] [:th x]) ["ids" "name" "info" "last visit" "nvisits"]) ] ]
+    [:tbody
+     (map render-person-row @pep)
+    ]
    ]
 )
 
-(defn pep-comp []
-  [:div [:h1 "LNCDWEB"]
-    [:div (str @pep-search-state) ]
-    [:div (pep-search-comp) ]
+(defn search-comp []
+  [:div ;[:h1 "LNCDWEB"]
+   [:div {:class "search-cntnr"}
+    ;[:div (str @pep-search-state) ]
+    [:div (pep-search-form) ]
     [:div (pep-list-comp) ]
+   ]
   ]
 )
 
 
 ;; -------
 ;; Visit
-(defn visit-idv-comp [visit]
-  (str visit)
+
+; show tasks tasks -- link if has data
+(defn visit-task-idv-comp [t]
+ ^{:key (:vtid @t)}
+ (def attr (if (:hasdata t) 
+   (hash-map :on-click #(gotohash (str "/task/" (:vtid t) )  ) 
+             :class "visittask link"
+   )
+   (hash-map :class "visittask" )
+ ))
+ [:div attr (:task t) ]
 )
-(defn visit-comp []
- [:div [:h1 {:class "visit-cntnr"} "Visits" ]
-       (map visit-idv-comp @visit-state) ]
+
+;  
+(defn visit-idv-comp [visit]
+   ^{:key (:vid visit)}
+   (def scorecolor (colorspctm (visit :vscore)))
+   (js/console.log "score: " scorecolor (visit :vscore))
+   [:li {:id (visit :vid) :class (str (visit :vstatus) " visititem " (visit :vtype) ) }
+
+    ; DATE and AGE
+    [:div {:class "visitdate"} 
+       (str (notime-datestr (visit :vtimestamp)) " - " (roundstr (visit :age) 2) )
+       [:div {:class "id"} (visit :vid) ] ]
+    ; INFO (type/study)
+    [:div {:class "visitinfo"  :style { :borderColor scorecolor}  } 
+        (visit :vtype)" - " (visit :study)  " - "  (visit :vscore) ]
+      ; TASKS
+      [:div {:class "visittasks" }  
+          (map visit-task-idv-comp (visit :tasks)) ]
+      ; NOTES
+      [:div {:class "visitnotes"}
+         (map #(render-note % ) (visit :notes) )
+      ]
+
+      ; STRUCT
+      ;[:div (str visit) ]
+    ;(when (not (:collapsed @person-state-display))
+    ;)
+   ]
+)
+
+;visit-form
+(defn new-visit-form [pid]
+      [:form
+        [:input {:type 'text :name 'datetime} "date"] [:br]
+        (study-dropdown nil)
+        (select-dropdown :dur ['.5 '1 '1.5 '2 ] #(1))
+        [:textarea { :name 'note} "Notes"] 
+      ] 
+)
+
+; person component: person, visits, contacts
+(defn person-comp []
+ [:div {:class "person"} 
+   [:div {:class "person-info"}
+     ;TODO:
+   ]
+   [:div {:class "visit-add"}
+    (when (:pid @person-state) 
+      ;(str @person-state)
+      (new-visit-form (:pid @person-state) )
+    )
+   ]
+   [:div {:class "visit-cntnr"} 
+   (map visit-idv-comp (:visits @person-state)) ]
+ ]
+)
+
+; ----- tasks
+(def visit-task-state (atom [{:vtid 0}]))
+
+(defn set-visit-task! [vtid]
+  (js/console.log  vtid)
+  (GET (str "/visit_task/" vtid  ) 
+       :keywords? true 
+       :response-format :json 
+       :handler (fn [response] 
+            (js/console.log "response:" (type response) (str response) )
+            (reset! visit-task-state response)
+       )
+  )
+)
+
+(defn inputform [ob]
+  ; (key ob) ; returns weird key + key_number
+  (def k (name (key ob)) )
+  [:tr 
+    [:td [:label {:for k} k ] ]
+    [:td [:input {:type "text" :value (val ob) :name k }  ] ]
+  ]
+)
+(defn visit-task-task [t]
+ [:div {:class "task"}
+  [:h3 (:fname t) " " (:lname t)  " › " (:task t) " " [:span {:class "id"} "@ " (roundstr (:age t) 1) " yro" ]   ]
+  [:table {:class "inputdiv"}
+    (map inputform (:measures t) )
+  ]
+ ]
+)
+(defn visit-task-comp []
+ [:div 
+   (map visit-task-task @visit-task-state)
+   ;(str @visit-task-state)
+ ]
 )
 
 ;; -------- all combin
 (defn pep-visit-comp []
  [:div 
-   (pep-comp)
-   (visit-comp)
+   (search-comp)
+   (person-comp)
  ]
+)
+
+(defn search-page []
+ (pep-visit-comp)
 )
 
 ;; -------------------------
@@ -111,11 +342,17 @@
 
 (defn home-page []
   [:div [:h2 "Welcome to web4"]
-   [:div [:a {:href "#/about"} "go to about page"]]])
+   [:div "looks like it's working" ]
+   [:div [:a {:href "#/search/1"} "go search"]]])
 
-(defn about-page []
-  [:div [:h2 "About web4"]
-   [:div [:a {:href "#/"} "go to the home page"]]])
+(defn person-page [vid]
+  [:div [:h2 "Visits"]
+   [:div [:a {:href "#/search/1"} "go to the home page"]]]
+  (person-comp) )
+
+(defn visit-task-page []
+   (visit-task-comp)
+)
 
 (defn current-page []
   [:div [(session/get :current-page)]])
@@ -127,11 +364,24 @@
 (secretary/defroute "/" []
   (session/put! :current-page #'home-page))
 
-(secretary/defroute "/about" []
-  (session/put! :current-page #'about-page))
 
-(secretary/defroute "/list" [n]
-  (session/put! :current-page #'pep-visit-comp ))
+; SEARCH
+(secretary/defroute "/search/:n" [n]
+  ;(set-search-page! n)
+  (get-pep-search!)
+  (session/put! :current-page #'search-page ))
+
+; VISIT
+(secretary/defroute "/person/:pid" [pid]
+  (js/console.log pid)
+  (set-person-visits! pid)
+  (session/put! :current-page #'person-page))
+
+; TASK
+(secretary/defroute "/task/:vtid" [vtid]
+  (js/console.log vtid)
+  (set-visit-task!  vtid)
+  (session/put! :current-page #'visit-task-page))
 
 ;; -------------------------
 ;; History
