@@ -13,6 +13,11 @@
               [cljs.pprint :as pp ]
               ; pretty colors
               [inkspot.color-chart :as cc]
+              ; date picker
+              ;[cljs-pikaday :as pikaday]
+              [reagent-forms.core :refer [bind-fields init-field value-of]  ]
+              ;debug show data
+              [json-html.core :refer [edn->hiccup]]
     )
     (:import goog.History))
 
@@ -114,7 +119,7 @@
                   (when (= (:selected-pid @pep-search-state) (:pid si) )
                         " search-selected")) }
 
-   [:td (map (fn[id] [:div {:class "search-id"} id ]) (:ids si) ) ]
+   [:td (map (fn[id] ^{:key (str si  id)}[:div {:class "search-id"} id ]) (:ids si) ) ]
    [:td [:div (si :fname) " " (si :lname) ]
        [:div {:class "dob"} (notime-datestr (si :dob)) ]
    ]
@@ -155,8 +160,9 @@
   (swap! pep-search-state update-in [:offset]  #(+ 10 %))
   (get-pep-search!)
 )
-(defn updatesearch [pepkey]
- (update-pep-search! pepkey (-> % .-target .-value ) )
+(defn updatesearch [pepkey dom]
+ (js/console.log "update: " dom)
+ (update-pep-search! pepkey (-> dom .-target .-value )  )
 )
 (defn select-dropdown [pepkey opts f]
   [:select {  :on-change #(f pepkey) }
@@ -167,7 +173,7 @@
     [:input {:type "text" 
              :size size
              :value (pepkey @pep-search-state)
-             :on-change #(updatesearch pepkey) }]
+             :on-change #(updatesearch pepkey %) }]
 )
 
 ; STUDY: TODO: pull from db instead of hardcode
@@ -198,7 +204,7 @@
 )
 (defn pep-list-comp []
   [:table  {:class "table table-striped table-condensed table-hover"} 
-    [:thead [:tr (map (fn[x] [:th x]) ["ids" "name" "info" "last visit" "nvisits"]) ] ]
+    [:thead [:tr (map (fn[x] ^{:key (str "header" x) }[:th x]) ["ids" "name" "info" "last visit" "nvisits"]) ] ]
     [:tbody
      (map render-person-row @pep)
     ]
@@ -259,15 +265,44 @@
     ;)
    ]
 )
+;(def bs-row [label id fieldtype]
+;   [:div.row
+;    [:div.col-md-2 [:label label]]
+;    [:div.col-md-5
+;     [:input.form-control {:field fieldtype :id id}]
+;    ]]
+;)
 
+; visit-form via reagent-forms
+(defn visit-form-date []
+  [:div
+   [:input.form-control {:field :text :id :study}]
+   [:input.form-control {:field :text :id :visitday}]
+
+   [:div.row
+    [:div.col-md-2 [:label "VisitDay"]]
+    [:div.col-md-5
+     [:div
+      {:field :datepicker :id :visitday :date-format "yyyy/mm/dd" :inline true}]]]
+
+  ]
+   ;[:input.form-control {:field :datepicker :id :visitday :date-format "yyyy-mm-dd" :inline true}]
+)
 ;visit-form
 (defn new-visit-form [pid]
-      [:form
-        [:input {:type 'text :name 'datetime} "date"] [:br]
+      (let [new-visit-state (atom {:visitday {:year 2016 :day 01 :month 01}  :time "00:00" :study 'none } )]
+      [:div.new-visit-form
+        ;[:input {:type 'text :name 'datetime} ] [:br]
+        ;[pikaday/date-selector {:date-atom new-visit-date }]
+        [bind-fields visit-form-date new-visit-state]
+
+        ;[:div {:field :datepicker :id :visitday :date-format "yyyy-mm-dd" :inline true}]
+
         (study-dropdown nil)
-        (select-dropdown :dur ['.5 '1 '1.5 '2 ] #(1))
-        [:textarea { :name 'note} "Notes"] 
-      ] 
+        (select-dropdown :dur ['0.5 '1 '1.5 '2 ] #(println "dur:" %)) [:br]
+        [:textarea { :name 'note :defaultValue  "Notes" } ] 
+        [:div (edn->hiccup @new-visit-state) ]
+      ]) 
 )
 
 ; person component: person, visits, contacts
@@ -276,12 +311,12 @@
    [:div {:class "person-info"}
      ;TODO:
    ]
-   [:div {:class "visit-add"}
-    (when (:pid @person-state) 
-      ;(str @person-state)
-      (new-visit-form (:pid @person-state) )
-    )
-   ]
+   (when (and (:pid @person-state) (> (:pid @person-state) 0) )
+     [:div {:class "visit-add col-md-5"}
+        ;(str @person-state)
+         (new-visit-form (:pid @person-state) ) 
+     ]
+   )
    [:div {:class "visit-cntnr"} 
    (map visit-idv-comp (:visits @person-state)) ]
  ]

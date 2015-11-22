@@ -1,5 +1,5 @@
 (ns web4.handler
-  (:require [compojure.core :refer [GET defroutes]]
+  (:require [compojure.core :refer [GET POST defroutes]]
             [compojure.route :refer [not-found resources]]
             [ring.middleware.defaults :refer [site-defaults wrap-defaults]]
             [hiccup.core :refer [html]]
@@ -13,6 +13,7 @@
             [yesql.core :refer [defqueries]]
             ; send json out
             [cheshire.core :as json]
+            ; json <-> PGobject 
             [web4.jdbcjson]
            ))
 
@@ -125,11 +126,15 @@
      [:script {:src "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js" 
                :integrity "sha512-K1qjQ+NcF2TYO/eI3M6v8EiNYZfA95pQumfvcVrTHtwQVDG+aHRqLi/ETn2uB+1JqwYqVG3LIvdm9lj6imS/pQ==" 
                :crossorigin "anonymous"}]
-
      [:meta {:charset "utf-8"}]
      [:meta {:name "viewport"
              :content "width=device-width, initial-scale=1"}]
-     (include-css (if (env :dev) "css/site.css" "css/site.min.css"))]
+     (include-css (if (env :dev) "css/site.css" "css/site.min.css"))
+     (include-css "//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap-theme.min.css")
+     ; date picker
+     [:style (-> "reagent-forms.css" clojure.java.io/resource slurp) ]
+   ]
+     ;(include-css "css/pikaday.css")]
     [:body
      [:div#app
       [:h3 "ClojureScript has not been compiled!"]
@@ -137,6 +142,10 @@
        [:b "lein figwheel"]
        " in order to start the compiler"]]
      (include-js "js/app.js")]]))
+
+(defn add-visit [pid body]
+  (println pid body)
+)
 
 ;; return json
 (defn json-response [data & [status]]
@@ -153,9 +162,12 @@
   (GET "/person/:pid/visits" [pid] (json-response (visit-search pid) ))
 
   (GET "/visit_task/:vtid" [vtid] (json-response (visit-task vtid) ))
+
+
+  ; INSERT
+  (POST "/person/:pid/visit" [pid req ] (json-response (add-visit pid req) ))
   (resources "/")
   (not-found "Not Found"))
-
 (def app
-  (let [handler (wrap-defaults #'routes site-defaults)]
+  (let [handler (wrap-defaults #'routes (assoc-in site-defaults [:security :anti-forgery] false) )]
     (if (env :dev) (-> handler wrap-exceptions wrap-reload) handler)))

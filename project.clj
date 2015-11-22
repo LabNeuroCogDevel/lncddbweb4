@@ -38,8 +38,17 @@
 
                  ; pretty dates in js
                  [com.andrewmcveigh/cljs-time "0.3.14"]
+                 ; date picker
+                 ;[cljs-pikaday "0.1.2"]
+                 ; also include css: https://raw.githubusercontent.com/dbushell/Pikaday/master/css/pikaday.css
+
+                 [reagent-forms "0.5.13"]
+
                  ; pretty colors
                  [rm-hull/inkspot "0.0.1-SNAPSHOT"]
+
+                 ;debug html printing
+                 [json-html "0.3.6"]
                  
                  ]
 
