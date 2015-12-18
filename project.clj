@@ -1,6 +1,17 @@
 ; lein new reagent web4
 
 (defproject web4 "0.1.0-SNAPSHOT"
+
+ ; want to be able to use figwheel from synergy-attached computer
+ ;:figwheel {:http-server-root "public"
+ ;           :server-port 3449
+ ;           :server-ip "10.145.65.240"
+
+ ;           :nrepl-port 7002
+ ;           :nrepl-middleware ["cemerick.piggieback/wrap-cljs-repl"]
+ ;           :css-dirs ["resources/public/css"]
+ ;           :ring-handler web4.handler/app}
+
   :description "FIXME: write description"
   :url "http://example.com/FIXME"
   :license {:name "Eclipse Public License"
@@ -9,8 +20,8 @@
   :dependencies [[org.clojure/clojure "1.7.0"]
                  [ring-server "0.4.0"]
                  [reagent "0.5.1"]
-                 [reagent-forms "0.5.12"]
                  [reagent-utils "0.1.5"]
+                 [reagent-forms "0.5.13"]
                  [ring "1.4.0"]
                  [ring/ring-defaults "0.1.5"]
                  [prone "0.8.2"]
@@ -20,6 +31,8 @@
                  [org.clojure/clojurescript "1.7.122" :scope "provided"]
                  [secretary "1.2.3"]
                  
+                 ; handle authentication
+                 [com.cemerick/friend "0.2.1" :exclusions [org.clojure/core.cache] ]
                  
                  
                  ; get data
@@ -39,7 +52,7 @@
                  ; pretty dates in js
                  [com.andrewmcveigh/cljs-time "0.3.14"]
                  ; date picker
-                 ;[cljs-pikaday "0.1.2"]
+                 [cljs-pikaday "0.1.2"]
                  ; also include css: https://raw.githubusercontent.com/dbushell/Pikaday/master/css/pikaday.css
 
                  [reagent-forms "0.5.13"]
@@ -102,6 +115,8 @@
 
                    :figwheel {:http-server-root "public"
                               :server-port 3449
+                              ;:server-ip "10.145.65.240"
+
                               :nrepl-port 7002
                               :nrepl-middleware ["cemerick.piggieback/wrap-cljs-repl"]
                               :css-dirs ["resources/public/css"]
@@ -112,7 +127,9 @@
                    :cljsbuild {:builds {:app {:source-paths ["env/dev/cljs"]
                                               :compiler {:main "web4.dev"
                                                          :source-map true}}
-}
+                                       ;:figwheel {:websocket-host "10.145.65.240"}
+                                       }
+                                        
 }}
 
              :uberjar {:hooks [leiningen.cljsbuild minify-assets.plugin/hooks]
