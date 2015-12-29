@@ -329,9 +329,9 @@
 
  (when (have-pesron)
   (POST (str "/person/" (:pid @person-state) "/visit"  )
-       :keywords? true 
+       :keywords? true
+       :format :json
        :response-format :json 
-       :request-format :json 
        :params senddata
        :handler (fn [response] 
             ; print 
