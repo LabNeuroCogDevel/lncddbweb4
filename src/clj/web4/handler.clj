@@ -240,6 +240,7 @@
       (include-js "js/app.js")]]]))
 
 (defn add-visit [pid body]
+  ;TODO: POST TO GOOGLE
   (println pid body)
 )
 
@@ -260,6 +261,7 @@
   ;http://0.0.0.0:3000/people/name?n=william
   (GET  "/people/name" [n] (json-response (listsubj n) ))
   (GET  "/people" {params :params} (json-response  (pep-search params) ))
+
   ; add
   (POST "/people" {params :params} (json-response  (pep-add    params) ))
   ; enroll 
@@ -274,7 +276,9 @@
 
   ;; INSERT 
   ; schedule
-  (POST "/person/:pid/visit" [pid req ] (json-response (add-visit pid req) ))
+  (POST "/person/:pid/visit" {body :body params :params }  (json-response (add-visit params (slurp body)) ))
+  ;(POST "/person/:pid/visit" [pid dur vtimestamp notes]  (json-response (add-visit pid dur) ))
+
   ;(POST "/person/:pid/visit" {params :params} (json-response (visit-add    params) ))
   ; check in  -- select tasks, score visit
   (POST "/visit/:vid/checkin" {params :params} (json-response (visit-checkin params) ))

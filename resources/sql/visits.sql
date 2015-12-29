@@ -2,13 +2,17 @@
 --  need :pid, will give visits with study
 -- TODO: get dropped!
 select 
-round(v.age::numeric,1) as age, 
-v.vid,v.pid,vtype,age,vtimestamp,vscore,visitno,vstatus, vs.study,vs.cohort,v.googleuri
- from visit v 
- join visit_study vs on v.vid=vs.vid
+  v.age,v.vid,v.pid,
+  vtype,age,vtimestamp,
+  vscore,visitno,vstatus,
+  vs.study,vs.cohort,
+  googleuri
+ from visit as v 
+ join visit_study as vs on v.vid=vs.vid
  where v.pid = :pid
+ order by v.age desc
  -- group by vid
- order by age desc
+ -- round(v.age::numeric,1) as v.age, 
 
 -- name: list-notes-by-vid 
 select n.*,dc.droplevel from note n 

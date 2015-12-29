@@ -22,6 +22,9 @@
     (:import goog.History))
 
 
+;;; settings for postgrest haskell server
+(def pgresturi "http://127.0.0.1:3001/")
+
 ;;; helpers
 ;(def colorspctm (cc/gradient :red :green 10) )
 (defonce colorspctm (cc/color-mapper (cc/ui-gradient :miaka 10) 0 5))
@@ -58,6 +61,11 @@
 
 ; contains all the visits
 (defonce person-state (atom {:pid 0 :visits []}))
+; do we have a pesron in the global state
+(defn have-pesron []
+  (and (:pid @person-state) (> (:pid @person-state) 0) )
+)
+
 ; contains how to display the visits
 (defonce visit-state-display (atom {:collapsed false}))
 
@@ -307,41 +315,71 @@
   ]
    ;[:input.form-control {:field :datepicker :id :visitday :date-format "yyyy-mm-dd" :inline true}]
 )
-;visit-form
+
+(defn add-visit! [doc]
+ ;; make timestamp
+ (def tvector (flatten [ 
+   (vals (select-keys (doc :visitday ) [:year :month :day ] )) 
+   (clojure.string/split (:time doc) ":" )
+  ]))
+ (def timestamp (apply tc/date-time tvector))
+
+ (def senddata (assoc (select-keys doc [:note :dur]) :vtimestamp (str timestamp)) )
+ (js/console.log "time:"  timestamp "\nsenddat: " (str senddata) "\ndoc:" (str doc))
+
+ (when (have-pesron)
+  (POST (str "/person/" (:pid @person-state) "/visit"  )
+       :keywords? true 
+       :response-format :json 
+       :request-format :json 
+       :params senddata
+       :handler (fn [response] 
+            ; print 
+            (js/console.log "response:" (type response) (str response) )
+
+            ; TODO
+            ; check response, append to error messagse
+
+            ; update list again
+            (set-person-visits! (:pid @person-state))
+       )
+  )
+ )
+)
+
 (defn new-visit-form []
-   (let [new-visit-state 
+ (let [doc 
          (atom {:visitday {:year 2016 :day 01 :month 01}  
                 :time "00:00"
                 :dur 1 
                 :study "none" 
                 :note "Notes"} )]
-      ;(fn []
-        [:div 
-           [bind-fields visit-form-date new-visit-state]
-           ;[:div (edn->hiccup @new-visit-state) ]
-           [:div (str @new-visit-state) ]
-        ]
-       )
-)
-(defn new-visit-comp [pid]
-      (js/console.log  "here i am")
-      [:div.new-visit-form
-       (new-visit-form)
-      ]
-)
+  (fn []
+   (if  (have-pesron)
+     [:div
+       [bind-fields visit-form-date doc]
+       [:div (edn->hiccup @doc)]
+       [:input {:type :submit :on-click #(add-visit! @doc) :value "add visit"}]
+     ]
+     [:div "no person, no new-visit-form" ])
+   )
+))
+
 
 ; person component: person, visits, contacts
 (defn person-comp []
  [:div {:class "person"} 
+
    [:div {:class "person-info"}
      ;TODO:
    ]
-   (when (and (:pid @person-state) (> (:pid @person-state) 0) )
+
+   (when (have-pesron)
      [:div {:class "visit-add col-md-5"}
-        ;(str @person-state)
-         (new-visit-comp (:pid @person-state) ) 
+        (new-visit-form ) 
      ]
    )
+
    [:div {:class "visit-cntnr"} 
    (map visit-idv-comp (:visits @person-state)) ]
  ]
@@ -417,13 +455,29 @@
 (defn current-page []
   [:div [(session/get :current-page)]])
 
+
+;; --------
+;; test reagent form
+;; ----
+(def formtest 
+ [:div 
+  [:input.form-control {:field :numeric :fmt "%.2f" :id :testf} ]
+ ]
+)
+
+
+(secretary/defroute "/add/visit/:pid" [pid]
+  (set-person-visits! pid)
+  (session/put! :current-page #'new-visit-form ))
+;; ---
+
 ;; -------------------------
 ;; Routes
 (secretary/set-config! :prefix "#")
 
+
 (secretary/defroute "/" []
   (session/put! :current-page #'home-page))
-
 
 ; SEARCH
 (secretary/defroute "/search/:n" [n]
@@ -433,7 +487,7 @@
 
 ; VISIT
 (secretary/defroute "/person/:pid" [pid]
-  (js/console.log pid)
+  (js/console.log "routing to person/pid with " pid)
   (set-person-visits! pid)
   (session/put! :current-page #'person-page))
 
