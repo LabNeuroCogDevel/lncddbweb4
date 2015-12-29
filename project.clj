@@ -62,8 +62,10 @@
 
                  ;debug html printing
                  [json-html "0.3.6"]
-                 
-                 ]
+                
+                 ; google cal
+                 [google-apps-clj "0.2.1"]
+                ]
 
   :plugins [[lein-environ "1.0.1"]
             [lein-asset-minifier "0.2.2"]

@@ -2,12 +2,13 @@
 --  need :pid, will give visits with study
 -- TODO: get dropped!
 select 
-v.vid,v.pid,vtype,age,vtimestamp,vscore,visitno,vstatus, vs.study,vs.cohort  
- from visit v join visit_study vs on v.vid=vs.vid
+round(v.age::numeric,1) as age, 
+v.vid,v.pid,vtype,age,vtimestamp,vscore,visitno,vstatus, vs.study,vs.cohort,v.googleuri
+ from visit v 
+ join visit_study vs on v.vid=vs.vid
  where v.pid = :pid
  -- group by vid
  order by age desc
-
 
 -- name: list-notes-by-vid 
 select n.*,dc.droplevel from note n 
@@ -55,3 +56,12 @@ insert into visit_note (vid,nid) values (:vid,:nid)
 insert into visit_drop (vid,did) values (:vid,:did)
 
 
+-- name: list-visit_notes
+--  need :vid, will give visit notes
+select n.* from note n 
+ join visit_note vn on vn.nid=n.nid 
+ where vid = :vid
+
+-- name: list-visit_tasks
+--  need :vid, will give visit tasks
+select vt.* from visit_task vt where vid = :vid

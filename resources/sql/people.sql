@@ -1,11 +1,15 @@
 -- name: list-people-by-name
 -- list people given a name
-select p.*,date_part('day',(now()-dob))/365.25 as age  from person p where lower(concat(fname,' ',lname)) like concat('%',lower(:name),'%')
+select 
+  p.*,
+  round( (date_part('day',(now()-dob))/365.25)::numeric,1) as age
+from person p where lower(concat(fname,' ',lname)) ilike concat('%',lower(:name),'%')
  
 
 -- name: list-people-by-name-study-enroll
 -- list people:
--- need: study,eid,hand,fullname,sex,mincount minage maxage
+-- with
+--  :eid, :fullname, :sex, :hand,:etype,:study,:mincount,:minage,:maxage, :offset
 select 
  p.*,
  date_part('day',(now()-dob))/365.25 as curage,
@@ -25,12 +29,14 @@ left join visit_study vs on v.vid=vs.vid
 left join dropped d      on d.pid=p.pid
 left join dropcode dc    on dc.dropcode = d.dropcode
 where 
-  vs.study ilike concat('%',:study,'%')    and
-  e.id  ilike concat('%',:eid,'%')    and
-  p.hand   ilike concat('%',:hand,'%')     and
   concat(p.fname,' ',p.lname) 
            ilike concat('%',:fullname,'%') and
-  p.sex    ilike concat('%',:sex,'%')   
+
+  p.sex    ilike concat('%',:sex,'%')      and
+  p.hand   ilike concat('%',:hand,'%')     and
+  e.id     ilike concat('%',:eid,'%')    and
+  e.etype  ilike concat('%',:etype,'%')    and
+  vs.study ilike concat('%',:study,'%')    
 group by p.pid
 having 
   count(distinct v.vid) >= :mincount               and
@@ -56,3 +62,11 @@ select n.*
   where
     vn.vid is null and 
     pid = :pid 
+
+-- name: person-enroll<!
+-- give :pid :etype and :id, enroll subject
+insert into enroll (pid,etype,id,edate) values (:pid::numeric,:etype,:id::character, date(now()) )
+
+-- name: person-add<!
+-- add person, need :fname,:lname,:dob,:sex,:hand,:source
+insert into person (fname,lname,dob,sex,hand,adddate,source) values (:fname,:lname,:dob::date,:sex,:hand,date(now()),:source) 

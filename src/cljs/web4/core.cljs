@@ -136,9 +136,11 @@
 
 
 (defn get-pep-search! []
+  ;(js/console.log (ajax.core/uri-with-params "/people" @pep-search-state)  )
   (GET (ajax.core/uri-with-params "/people" @pep-search-state) 
   ;(GET (str "/people?fullname=" (:fullname @pep-search-state )) 
   ;(GET (ajax.core/uri-with-params "/lists" pep-search-state) 
+  ;(GET (str "/people/name?n=" (:fullname @pep-search-state )) 
        :keywords? true 
        :response-format :json 
        :handler (fn [response] 
@@ -241,6 +243,18 @@
 
 ;  
 (defn visit-idv-comp [visit]
+    ; before merge
+    ; =======
+    ;  ; :vstatus  :vscore  :visitno  :study :age :vid  :pid  :vtype  :googleuri  :cohort  :vtimestamp 
+    ;   ^{:key (:vid visit)}
+    ;    [:div {:class 'visit} 
+    ;      [:div {:class  "visit-age"    } (:age    visit ) ] 
+    ;      [:div {:class  "visit-type"   } (:vtype  visit ) ] 
+    ;      [:div {:class  "visit-cohort" } (:cohort visit ) ] 
+    ;      [:div {:class  "visit-study"  } (:study  visit ) ] 
+    ;     ; (map #( [:div {:class (str "visit-" (name %) ) } (% visit ) ] )  [:age :study :vtype :cohort :vtimestamp] ) 
+    ;    ]
+    ; >>>>>>> dc52f2bc0a8b6c77ff28888cbbb3099cf741222f
    
    (def scorecolor (colorspctm (visit :vscore)))
    ;(js/console.log "score: " scorecolor (visit :vscore))
