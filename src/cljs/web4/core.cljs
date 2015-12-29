@@ -24,7 +24,7 @@
 
 ;;; helpers
 ;(def colorspctm (cc/gradient :red :green 10) )
-(def colorspctm (cc/color-mapper (cc/ui-gradient :miaka 10) 0 5))
+(defonce colorspctm (cc/color-mapper (cc/ui-gradient :miaka 10) 0 5))
 ; see also :drakula @ https://github.com/rm-hull/inkspot
 
 (defn nilor [in defval]
@@ -57,9 +57,9 @@
 ;--- visit
 
 ; contains all the visits
-(def person-state (atom {:pid 0 :visits []}))
+(defonce person-state (atom {:pid 0 :visits []}))
 ; contains how to display the visits
-(def visit-state-display (atom {:collapsed false}))
+(defonce visit-state-display (atom {:collapsed false}))
 
 (defn set-person-visits! [pid]
   (js/console.log  pid)
@@ -67,7 +67,7 @@
        :keywords? true 
        :response-format :json 
        :handler (fn [response] 
-            (js/console.log "response:" (type response) (str response) )
+            ;(js/console.log "response:" (type response) (str response) )
             (swap! person-state assoc :pid pid)
             (swap! person-state assoc :visits response)
        )
@@ -84,8 +84,8 @@
 
 ;--- people
 ; start out with a people search result
-(def pep (atom [{:pid 0 :fname "Searching" :lname "For People" } ] ))
-(def pep-search-state (atom {:study "" :eid "" :hand "" :fullname "" :sex "" :mincount 0 :minage 0 :maxage 200 :offset 0 :selected-pid 0}))
+(defonce pep (atom [{:pid 0 :fname "Searching" :lname "For People" } ] ))
+(defonce pep-search-state (atom {:study "" :eid "" :hand "" :fullname "" :sex "" :mincount 0 :minage 0 :maxage 200 :offset 0 :selected-pid 0}))
 ; (def pep-search-state (atom {:minage 0 :maxage 100 :fullname "Will" :sex "%" :hand "%" :mincount 0 } ))
 
 
@@ -114,6 +114,7 @@
 (defn render-person-row [si]
  ^{:key (:pid si)} 
   ;[:tr  { :on-click #(set-person-visits! (:pid si))}
+  ; TODO WARNING 'when' on @pep-search-state causes warning
   [:tr  { :on-click #(select-person! (:pid si))
           :class (str "drop-" (:maxdrop si)
                   (when (= (:selected-pid @pep-search-state) (:pid si) )
@@ -141,7 +142,7 @@
        :keywords? true 
        :response-format :json 
        :handler (fn [response] 
-            (js/console.log "response:" (type response) (str response) )
+            ;(js/console.log "response:" (type response) (str response) )
             (reset! pep response)
        )
   )
@@ -227,22 +228,23 @@
 
 ; show tasks tasks -- link if has data
 (defn visit-task-idv-comp [t]
- ^{:key (:vtid @t)}
+ 
  (def attr (if (:hasdata t) 
    (hash-map :on-click #(gotohash (str "/task/" (:vtid t) )  ) 
              :class "visittask link"
    )
    (hash-map :class "visittask" )
  ))
- [:div attr (:task t) ]
+
+ ^{:key (:vtid t)} [:div attr (:task t) ]
 )
 
 ;  
 (defn visit-idv-comp [visit]
-   ^{:key (:vid visit)}
+   
    (def scorecolor (colorspctm (visit :vscore)))
-   (js/console.log "score: " scorecolor (visit :vscore))
-   [:li {:id (visit :vid) :class (str (visit :vstatus) " visititem " (visit :vtype) ) }
+   ;(js/console.log "score: " scorecolor (visit :vscore))
+   ^{:key (:vid visit)}[:li {:id (visit :vid) :class (str (visit :vstatus) " visititem " (visit :vtype) ) }
 
     ; DATE and AGE
     [:div {:class "visitdate"} 
@@ -274,35 +276,44 @@
 ;)
 
 ; visit-form via reagent-forms
-(defn visit-form-date []
+(def visit-form-date 
   [:div
    [:input.form-control {:field :text :id :study}]
-   [:input.form-control {:field :text :id :visitday}]
+   [:input.form-control {:field :text :id :time}]
+
+   [:select {:field :list :id :dur} (map (fn[k] [:option {:key k} k]) [.5 1 1.5 2] )]
 
    [:div.row
     [:div.col-md-2 [:label "VisitDay"]]
     [:div.col-md-5
      [:div
       {:field :datepicker :id :visitday :date-format "yyyy/mm/dd" :inline true}]]]
+      [:textarea { :field :textarea :id :note } ] 
 
   ]
    ;[:input.form-control {:field :datepicker :id :visitday :date-format "yyyy-mm-dd" :inline true}]
 )
 ;visit-form
-(defn new-visit-form [pid]
-      (let [new-visit-state (atom {:visitday {:year 2016 :day 01 :month 01}  :time "00:00" :study 'none } )]
+(defn new-visit-form []
+   (let [new-visit-state 
+         (atom {:visitday {:year 2016 :day 01 :month 01}  
+                :time "00:00"
+                :dur 1 
+                :study "none" 
+                :note "Notes"} )]
+      ;(fn []
+        [:div 
+           [bind-fields visit-form-date new-visit-state]
+           ;[:div (edn->hiccup @new-visit-state) ]
+           [:div (str @new-visit-state) ]
+        ]
+       )
+)
+(defn new-visit-comp [pid]
+      (js/console.log  "here i am")
       [:div.new-visit-form
-        ;[:input {:type 'text :name 'datetime} ] [:br]
-        ;[pikaday/date-selector {:date-atom new-visit-date }]
-        [bind-fields visit-form-date new-visit-state]
-
-        ;[:div {:field :datepicker :id :visitday :date-format "yyyy-mm-dd" :inline true}]
-
-        (study-dropdown nil)
-        (select-dropdown :dur ['0.5 '1 '1.5 '2 ] #(println "dur:" %)) [:br]
-        [:textarea { :name 'note :defaultValue  "Notes" } ] 
-        [:div (edn->hiccup @new-visit-state) ]
-      ]) 
+       (new-visit-form)
+      ]
 )
 
 ; person component: person, visits, contacts
@@ -314,7 +325,7 @@
    (when (and (:pid @person-state) (> (:pid @person-state) 0) )
      [:div {:class "visit-add col-md-5"}
         ;(str @person-state)
-         (new-visit-form (:pid @person-state) ) 
+         (new-visit-comp (:pid @person-state) ) 
      ]
    )
    [:div {:class "visit-cntnr"} 
@@ -331,7 +342,7 @@
        :keywords? true 
        :response-format :json 
        :handler (fn [response] 
-            (js/console.log "response:" (type response) (str response) )
+            ;(js/console.log "response:" (type response) (str response) )
             (reset! visit-task-state response)
        )
   )
