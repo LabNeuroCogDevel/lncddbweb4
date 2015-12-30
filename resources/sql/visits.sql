@@ -38,22 +38,34 @@ select p.pid,v.vid,v.age,v.vtimestamp,p.fname,p.lname,p.sex,vt.*
 
 
 
--- name: insert-newvisit!
+-- name: insert-newvisit<!
 -- inserts a visit
-insert into visit (pid,age,vtype,vtimestamp,vstatus) values (:pid,:age,:vtype,:vdate,'sched')
--- opts: ('sched','complete','checkedin','cancelled','noshow','unkown','other')
+insert into visit 
+ (pid,age,vtype,vtimestamp,visitno,vstatus) 
+ select 
+   :pid::integer, 
+   date_part('day',(:vtimestamp::timestamp-dob))/365.25,
+   :vtype,
+   :vtimestamp::timestamp,
+   :visitno::integer,
+   'sched'
+  from person where pid = :pid::integer
+-- vstatus opts: ('sched','complete','checkedin','cancelled','noshow','unkown','other')
 
 -- name: insert-visittask!
 insert into visit_task (vid,task,measures,files) values (:vid,:task,:measures::jsonb,:files::jsonb)
 
 
 -- name: insert-visitaction!
-insert into visit_action (vid,action,ra,vatimestamp) values (:vid,:action::status,:ra,:vatimestamp)
+insert into visit_action (vid,action,ra,vatimestamp) values (:vid,:action::status,:ra,:vatimestamp::timestamp)
+
+-- name: insert-visitaction-now!
+insert into visit_action (vid,action,ra,vatimestamp) values (:vid,:action::status,:ra,now())
 
 -- name: insert-visitstudy! 
 insert into visit_study (vid,study,cohort) values (:vid,:study,:cohort)
 
--- name: insert-visitnote! 
+-- name: insert-visitnote<! 
 insert into visit_note (vid,nid) values (:vid,:nid)
 
 -- name: insert-visitdrop! 

@@ -29,14 +29,16 @@ left join visit_study vs on v.vid=vs.vid
 left join dropped d      on d.pid=p.pid
 left join dropcode dc    on dc.dropcode = d.dropcode
 where 
+  (
+  :pid = 0 and 
   concat(p.fname,' ',p.lname) 
            ilike concat('%',:fullname,'%') and
-
   p.sex    ilike concat('%',:sex,'%')      and
   p.hand   ilike concat('%',:hand,'%')     and
-  e.id     ilike concat('%',:eid,'%')    and
+  e.id     ilike concat('%',:eid,'%')      and
   e.etype  ilike concat('%',:etype,'%')    and
   vs.study ilike concat('%',:study,'%')    
+  ) or (p.pid = :pid  )
 group by p.pid
 having 
   count(distinct v.vid) >= :mincount               and
@@ -70,3 +72,8 @@ insert into enroll (pid,etype,id,edate) values (:pid::numeric,:etype,:id::charac
 -- name: person-add<!
 -- add person, need :fname,:lname,:dob,:sex,:hand,:source
 insert into person (fname,lname,dob,sex,hand,adddate,source) values (:fname,:lname,:dob::date,:sex,:hand,date(now()),:source) 
+
+
+
+
+

@@ -20,8 +20,12 @@
             ; work between types
             [clojure.data.json :as cjson]
 
+            ; get timestamp from string to datetime object
+            [clj-time.core :as t]
+            [clj-time.coerce :as tc] 
+
             ; google cal
-            ;[google-apps-clj :as gcal]
+            ;[google-apps-clj.core :as gcal]
 
            ))
 
@@ -39,7 +43,11 @@
 ;  * list-visits-by-pid
 ;  * list-tasks-by-vid
 ;  * get-visit-task-by-id
+;  * insert-newvisit<! 
 (defqueries "sql/visits.sql" {:connection db-spec})
+
+; * insert-note
+(defqueries "sql/note.sql" {:connection db-spec})
 
 ;; http://blog.00null.net/clojure-yesql-and-postgesql-arrays/
 ; posgresql arrays 
@@ -65,10 +73,10 @@
   "search subjects and get visit summaries"
   [searchmap]
   ; by default we want these things
-  (def defsearch {:study "%" :eid "%" :etype "%" :hand "%" :fullname "%" :sex "%" :mincount 0 :minage 0 :maxage 200 :offset 0})
+  (def defsearch {:study "%" :eid "%" :etype "%" :hand "%" :fullname "%" :sex "%" :mincount 0 :minage 0 :maxage 200 :offset 0 :pid 0})
   (def mparms (merge defsearch (select-keys searchmap  (keys defsearch) ))  )
 
-  (println "have: " mparms) 
+  (println "have:  " mparms) 
 
   ; earlier invocation
   ;(def mergesearch (merge defsearch (select-keys searchmap  (keys defsearch) ))   )
@@ -77,7 +85,7 @@
 
   ; make numbers where we should have numbers
   (def search-int 
-     (reduce (fn [x y] (update-in x [y]  #(Integer. %) )) mparms [:mincount :minage :maxage :offset] )
+     (reduce (fn [x y] (update-in x [y]  #(Integer. %) )) mparms [:mincount :minage :maxage :offset :pid] )
   )
   (def search
      (reduce (fn [x y] (update-in x [y]  #(if (nil? %) "%" %) )) search-int [:study :etype :hand :fullname :sex] )
@@ -182,6 +190,11 @@
 (defn match-or-U [p s]
   (clojure.string/upper-case(or (and (some? s) (re-matches p s)) "U") )
 )
+; merge params with default settings
+(defn select-keys-or-none [needkeys params]
+  (def params-nonil (reduce (fn [m k] (update-in m [k] #(or % "none")  )) params needkeys   ) )
+  (select-keys params-nonil needkeys) 
+)
 
 (defn pep-add [params] 
   (println "in: " params)
@@ -199,6 +212,8 @@
   (sql-add-error person-add<! submitparams)
   
 )
+
+
 
 (defn person-edit   [params] 
  (println params)
@@ -239,9 +254,46 @@
       [:h3 "ClojureScript has not been compiled!"]
       (include-js "js/app.js")]]]))
 
-(defn add-visit [pid body]
+(defn add-visit [urlp body]
+  (println (str urlp body))
+  
+  (def params 
+    (update 
+     (merge urlp (json/parse-string body true))
+     :vtimestamp
+     tc/to-date-time
+    )
+  )
+  
   ;TODO: POST TO GOOGLE
-  (println pid body)
+  ;(gcal/add-calendar-event )
+  ;(def params
+  ;  (reduce (fn [x y] (update-in x [y]  #(Integer. %) )) params [:pid] )
+  ;)
+
+  (def vid (:vid (insert-newvisit<! (select-keys params [:pid :vtype :vnum :visitno :vtimestamp  ]) ) ))
+  (def nid (:nid (insert-note-now<! (select-keys params [:pid :ra :note] )) ))
+
+  (println (str "added vid: " vid))
+  (println (str "added note: " nid))
+  (when (and vid nid)
+  (do 
+     ;insert into visit_action (vid,action,ra,vatimestamp) values (:vid,:action::status,:ra,:vatimestamp)
+     (insert-visitaction-now! {:vid vid :action "sched"  :ra (:ra params )})
+
+     ;insert into visit_note (vid,nid) values (:vid,:nid)
+     (insert-visitnote<! {:vid vid :nid nid})
+
+     ;insert into visit_study (vid,study,cohort) values (:vid,:study,:cohort)
+     (insert-visitstudy! (merge {:vid vid} (select-keys params [:study :cohort])))
+  ))
+  (println params)
+  ; -- name: insert-newvisit!
+  ; -- inserts a visit
+  ; insert into visit (pid,age,vtype,vtimestamp,vstatus) values (:pid,:age,:vtype,:vdate,'sched')
+  ; -- opts: ('sched','complete','checkedin','cancelled','noshow','unkown','other')
+
+  {:vid vid :nid nid}
 )
 
 ;; return json
@@ -276,8 +328,7 @@
 
   ;; INSERT 
   ; schedule
-  (POST "/person/:pid/visit" {body :body params :params }  (json-response (add-visit params (slurp body)) ))
-  ;(POST "/person/:pid/visit" [pid dur vtimestamp notes]  (json-response (add-visit pid dur) ))
+  (POST "/person/:pid/visit" {body :body params :params }  (json-response (add-visit  params (slurp body))))
 
   ;(POST "/person/:pid/visit" {params :params} (json-response (visit-add    params) ))
   ; check in  -- select tasks, score visit

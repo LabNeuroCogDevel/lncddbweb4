@@ -17,3 +17,19 @@ select p.*,
     vs.studyName like :study and
     enrollType like :enrolltype
   group by peopleid
+
+
+
+-- name: person-info
+-- get infor for one person
+select p.*,
+ datediff(now(),dob)/365.25 as curage 
+ max(v.visitdate) as lastvisit,
+ count(distinct v.visitid) as numvisits,
+ group_concat(distinct pe.value) as ids 
+  from people p 
+  left join peopleEnroll pe on pe.pid=p.pid 
+  left join visits v on p.pid = v.pid
+  left join visitsstudies vs on vs.visitid = v.visitid 
+  where pid = :pid
+  group by pid

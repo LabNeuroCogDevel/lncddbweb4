@@ -57,12 +57,12 @@
 ;; -------------------------
 ;; Models?
 
-;--- visit
+;--- person+visit
 
 ; contains all the visits
 (defonce person-state (atom {:pid 0 :visits []}))
 ; do we have a pesron in the global state
-(defn have-pesron []
+(defn have-person []
   (and (:pid @person-state) (> (:pid @person-state) 0) )
 )
 
@@ -71,15 +71,28 @@
 
 (defn set-person-visits! [pid]
   (js/console.log  pid)
-  (GET (str "/person/" pid "/visits" ) 
+   (GET (str "/person/" pid "/visits" ) 
        :keywords? true 
        :response-format :json 
        :handler (fn [response] 
             ;(js/console.log "response:" (type response) (str response) )
             (swap! person-state assoc :pid pid)
             (swap! person-state assoc :visits response)
+
+            ; get persons info
+            (GET (ajax.core/uri-with-params "/people" 
+                   {:pid pid :study "" :eid "" :hand "" 
+                    :fullname "" :sex "" :mincount 0 :minage 0 :maxage 200 :offset 0}) 
+                 :keywords? true 
+                 :response-format :json 
+                 :handler (fn [response] 
+                      ;(js/console.log "response:" (type response) (str response) )
+                      (swap! person-state assoc :info (get response 0))
+                 )
+             )
        )
-  )
+   )
+
 )
 
 ;--- note
@@ -234,7 +247,22 @@
 
 
 ;; -------
-;; Visit
+;; Person/Visit
+
+; person info
+(defn person-info-comp []
+ (def info (:info @person-state))
+ (def dropinfo (get-in @person-state [:info :maxdrop]))
+
+ [:div
+  [:h2 (clojure.string/join " " (:ids info)) ]
+  [:h3 (str (:fname info) " " (:lname info)) ] 
+  (when (not (nil? dropinfo)) [:div "Drop: " dropinfo ])
+ ;[:div
+ ;  (edn->hiccup (:info @person-state))
+ ;]
+
+])
 
 ; show tasks tasks -- link if has data
 (defn visit-task-idv-comp [t]
@@ -297,25 +325,6 @@
 ;    ]]
 ;)
 
-; visit-form via reagent-forms
-(def visit-form-date 
-  [:div
-   [:input.form-control {:field :text :id :study}]
-   [:input.form-control {:field :text :id :time}]
-
-   [:select {:field :list :id :dur} (map (fn[k] [:option {:key k} k]) [.5 1 1.5 2] )]
-
-   [:div.row
-    [:div.col-md-2 [:label "VisitDay"]]
-    [:div.col-md-5
-     [:div
-      {:field :datepicker :id :visitday :date-format "yyyy/mm/dd" :inline true}]]]
-      [:textarea { :field :textarea :id :note } ] 
-
-  ]
-   ;[:input.form-control {:field :datepicker :id :visitday :date-format "yyyy-mm-dd" :inline true}]
-)
-
 (defn add-visit! [doc]
  ;; make timestamp
  (def tvector (flatten [ 
@@ -324,10 +333,10 @@
   ]))
  (def timestamp (apply tc/date-time tvector))
 
- (def senddata (assoc (select-keys doc [:note :dur]) :vtimestamp (str timestamp)) )
+ (def senddata (merge doc  {:vtimestamp (str timestamp)}) )
  (js/console.log "time:"  timestamp "\nsenddat: " (str senddata) "\ndoc:" (str doc))
 
- (when (have-pesron)
+ (when (have-person)
   (POST (str "/person/" (:pid @person-state) "/visit"  )
        :keywords? true
        :format :json
@@ -346,23 +355,69 @@
   )
  )
 )
+; visit-form via reagent-forms
+(def visit-form-date 
+  [:div
+
+   ; study and cohort
+   [:div.row
+     [:div.col-xs-4 [:input.form-control {:field :text :id :study :placeholder "STUDY"}] ]
+     [:div.col-xs-4 [:input.form-control {:field :text :id :cohort}] ]
+   ]
+   [:div.row
+     [:div.col-xs-4 [:input.form-control {:field :text :id :vtype :placeholder "Type"}] ]
+     [:div.col-xs-4 [:input.form-control {:field :text :id :visitno :placeholder "VNUM"}] ]
+   ]
+
+   ; date, time , duration
+   [:div.row
+    [:div.col-xs-4 [:div {:field :datepicker :id :visitday :date-format "yyyy/mm/dd" :inline true}]]
+    [:div.col-xs-4 
+       [:div.input-group
+         [:input.form-control {:field :text :id :time}]
+         [:div.input-group-addon "/24:00"]
+      ]
+    ]
+    [:div.col-xs-4 [:div.input-group
+      [:input.form-control {:field :text :id :dur}] 
+      [:div.input-group-addon "hours"]
+    ]]
+   ]
+   [:div.row
+     [:textarea.form-control { :field :textarea :id :note :placeholder "NOTES"} ] 
+   ]
+   ]
+
+   ;[:select {:field :list :id :dur} (map (fn[k] [:option {:key k} k]) [.5 1 1.5 2] )]
+   ;[:input.form-control {:field :datepicker :id :visitday :date-format "yyyy-mm-dd" :inline true}]
+)
+
 
 (defn new-visit-form []
- (let [doc 
-         (atom {:visitday {:year 2016 :day 01 :month 01}  
+ (let [
+    showadd (atom false)
+    doc (atom {:visitday {:year 2016 :day 01 :month 01}  
                 :time "00:00"
+                :visitno 1
                 :dur 1 
-                :study "none" 
-                :note "Notes"} )]
+                :ra "testRA"
+                :cohort "control"
+                :study "" 
+                :vtype "Scan"
+                :note ""} )]
   (fn []
-   (if  (have-pesron)
+   [:div.visit-form
+    [:div.toggle [:a {:on-click #(do (js/console.log @showadd) (swap! showadd not)) } "add visit" ] ]
+    (when  (and have-person @showadd)
      [:div
        [bind-fields visit-form-date doc]
-       [:div (edn->hiccup @doc)]
-       [:input {:type :submit :on-click #(add-visit! @doc) :value "add visit"}]
+       [:div.btn.btn-default {:on-click #(add-visit! @doc) } "Add Visit" ]
+       ;[:div (edn->hiccup @doc)]
+       
      ]
-     [:div "no person, no new-visit-form" ])
-   )
+   )]
+  )
+
 ))
 
 
@@ -371,12 +426,12 @@
  [:div {:class "person"} 
 
    [:div {:class "person-info"}
-     ;TODO:
+      (person-info-comp )
    ]
 
-   (when (have-pesron)
+   (when (have-person)
      [:div {:class "visit-add col-md-5"}
-        (new-visit-form ) 
+        [ (new-visit-form )  ]
      ]
    )
 
@@ -468,7 +523,7 @@
 
 (secretary/defroute "/add/visit/:pid" [pid]
   (set-person-visits! pid)
-  (session/put! :current-page #'new-visit-form ))
+  (session/put! :current-page #'person-comp))
 ;; ---
 
 ;; -------------------------
