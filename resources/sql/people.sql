@@ -24,7 +24,7 @@ select
  json_agg(distinct v.vtype)      as visittypes,
  max(dc.droplevel)               as maxdrop
 from person p
-left join visit v   on v.pid=p.pid
+left join visit v   on v.pid=p.pid and v.vstatus in ('sched','checkedin','complete')
 left join enroll e  on e.pid=p.pid
 left join visit_study vs on v.vid=vs.vid
 left join dropped d      on d.pid=p.pid
@@ -37,18 +37,18 @@ where
   p.sex    ilike concat('%',:sex,'%')      and
   p.hand   ilike concat('%',:hand,'%')     and
   (e.id     ilike concat('%',:eid,'%')   or
-   e.id     is null)                       and
+    e.id     is null)   and
   (e.etype  ilike concat('%',:etype,'%') or
-   e.etype  is null)                       and
+    e.etype  is null) and
   (vs.study ilike concat('%',:study,'%') or
-   vs.study is null)
+    vs.study is null)
   ) or (p.pid = :pid  )
 group by p.pid
 having 
   count(distinct v.vid) >= :mincount               and
   date_part('day',(now()-dob))/365.25 >= :minage   and 
   date_part('day',(now()-dob))/365.25 <= :maxage
-order by lastvisit desc
+order by lastvisit desc  -- NULLS LAST
 limit 10
 offset :offset
 

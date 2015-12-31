@@ -59,25 +59,35 @@
 
 ; --- error
 (defonce error-state (atom {:error [] :warning [] :msg [] }))
-(defn add-error-state [k r]
-  (when (r k) 
-    (swap! error-state assoc k  (conj (@error-state k) (r k) ) ))
-    (js/console.log "error state now: " (str @error-state ))
+(defn add-error-state! [r]
+  (doseq [k [:error :warning :msg]]
+    (when (r k)
+    (swap! error-state assoc k (conj (@error-state k) (r k))) ))
+    ;(js/console.log (str @error-state))
+  ;  (do
+  ;   (js/console.log "add to error " (r k) " now: " (str @error-state )
+  ;   (swap! error-state assoc k  (conj (@error-state k) (r k) ) ))
+  ;  )) msgs))
 )
-(defn append-error-state! [r]
- (add-error-state :error   r)
- (add-error-state :warning r)
- (add-error-state :msg     r)
+(defn rm-error [msgtype n]
+ (def newlist (map-indexed (fn[i m] (when (not(= n i)) m))  (msgtype @error-state) ))
+ (swap! error-state assoc msgtype newlist)
+ ;(swap! error-state [msgtype n] nil )
 )
-(defn msg-div [msg]
-    [:div msg ]
+(defn idv-msg [msgtype msgs]
+  (doall 
+  (map-indexed (fn[n msg] 
+     ^{:key (str (name msgtype) n)}
+     [:div 
+      {:class (str "msg " (name msgtype))
+       :on-click #(rm-error msgtype n) }
+      msg
+     ]) 
+   msgs ))
 )
 (defn msg-view-comp []
  [:div.msgs
-    (msg-div (map #(msg-div % ) (@error-state :error) )  ) 
-    [:a {:on-click #(swap! error-state :error conj "A" ) } "clear" ]
-    ;(msg-div (map #(msg-div % ) (@error-state :warning) ))  
-    ;(msg-div (map #(msg-div % ) (@error-state :msg) )    )
+    (doall (map #(idv-msg % (% @error-state) ) [:msg :error :warning] ))
  ]
 )
 
@@ -165,7 +175,7 @@
                   (when (= (:selected-pid @pep-search-state) (:pid si) )
                         " search-selected")) }
 
-   [:td (map (fn[id] ^{:key (str si  id)}[:div {:class "search-id"} id ]) (:ids si) ) ]
+   [:td (doseq [id (:ids si)]  ^{:key (str si  id)}[:div {:class "search-id"} id ] )]
    [:td [:div (si :fname) " " (si :lname) ]
        [:div {:class "dob"} (notime-datestr (si :dob)) ]
    ]
@@ -252,9 +262,9 @@
 )
 (defn pep-list-comp []
   [:table  {:class "table table-striped table-condensed table-hover"} 
-    [:thead [:tr (map (fn[x] ^{:key (str "header" x) }[:th x]) ["ids" "name" "info" "last visit" "nvisits"]) ] ]
+    [:thead [:tr (doseq [x  ["ids" "name" "info" "last visit" "nvisits"]] ^{:key (str "header" x) }[:th x]) ] ]
     [:tbody
-     (map render-person-row @pep)
+     (doall (map render-person-row @pep))
     ]
    ]
 )
@@ -274,7 +284,7 @@
             ; TODO
             ; check response, append to error messagse
             (js/console.log "calling append-error state on above")
-            (append-error-state! response)
+            (add-error-state! response)
 
             ; refresh search, hopefully the new guy is there
             ; MAYBE join first and last in the pep-search ?
@@ -337,7 +347,7 @@
  (def dropinfo (get-in @person-state [:info :maxdrop]))
 
  [:div
-  [:h2 (clojure.string/join " " (:ids info)) ]
+  [:h2 (clojure.string/join " " (:ids info)) (str "(" (:pid @person-state) ")") ]
   [:h3 (str (:fname info) " " (:lname info)) ] 
   (when (not (nil? dropinfo)) [:div "Drop: " dropinfo ])
  ;[:div
@@ -359,6 +369,32 @@
  ^{:key (:vtid t)} [:div attr (:task t) ]
 )
 
+(def idv-vid-form 
+  [:div.row.idv-vid-form
+    [:div.col-xs-8 [:input.form-control {:field :text :id :note :placeholder "NOTES"}] ]
+    [:div.col-xs-4 [:div {:field :datepicker :id :visitday :date-format "yyyy/mm/dd" :inline true}]]
+  ]
+)
+
+(defn update-visit [how doc]
+ (add-error-state! {:msg (str how doc "hey there!")})
+ ;(js/console.log how (str doc))
+
+)
+
+(defn visit-idv-actions [visit]
+  (let [doc (atom {:note "" :date {} })] 
+  (fn[]
+      [:div.visitactions
+       [bind-fields idv-vid-form doc]
+       [:a {:href (str "#/visit/" (visit :vid) "/checkin" ) } "checkin" ]"|"
+       [:a {:on-click #(update-visit "noshow" @doc) } "noshow"  ]"|"
+       [:a {:on-click #(update-visit "cancel" @doc) } "cancel"  ]"|"
+       [:a {:on-click #(update-visit "resched" @doc) } "resched" ]
+      ]
+  )
+  )
+)
 ;  
 (defn visit-idv-comp [visit]
     ; before merge
@@ -382,6 +418,10 @@
     [:div {:class "visitdate"} 
        (str (notime-datestr (visit :vtimestamp)) " - " (roundstr (visit :age) 2) )
        [:div {:class "id"} (visit :vid) ] ]
+    ; ACTIONS
+    (when (= (visit :vstatus) "sched" )
+      [ (visit-idv-actions visit) ] 
+    )
     ; INFO (type/study)
     [:div {:class "visitinfo"  :style { :borderColor scorecolor}  } 
         (visit :vtype)" - " (visit :study)  " - "  (visit :vscore) ]

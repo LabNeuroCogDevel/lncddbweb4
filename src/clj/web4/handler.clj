@@ -24,6 +24,7 @@
             ; get timestamp from string to datetime object
             [clj-time.core :as t]
             [clj-time.coerce :as tc] 
+            [clj-time.format :as tf] 
 
             ; google cal
             ;[google-apps-clj.core :as gcal]
@@ -257,18 +258,26 @@
       [:h3 "ClojureScript has not been compiled!"]
       (include-js "js/app.js")]]]))
 
-(defn add-visit [urlp body]
-  (println (str urlp body))
-  
-  ; TODO: fix time conversion
-  (def params 
-    (update 
-     (merge urlp (json/parse-string body true))
-     :vtimestamp
-     tc/to-date-time
-    )
-  )
-  (println (str "timestamp:"  "'"(:vtimestamp params)"' from "  body ))
+;(defn add-visit [urlp body]
+;  (println (str urlp body))
+;  
+;  ; TODO: fix time conversion
+;  (def params 
+;    (update 
+;     (merge urlp (json/parse-string body true))
+;     :vtimestamp
+;     tc/to-date-time
+;    )
+;  )
+;  (println (str "timestamp:"  "'"(:vtimestamp params)"' from "  body ))
+(defn add-visit [params]
+
+  ;(def params 
+  ;  (update paramsinin
+  ;   :vtimestamp #(tf/parse (tf/formatter "yyyyMMddThhmmss"
+  ;  )
+  ;)
+  ;(println (str "timestamp:"  "'"(:vtimestamp params)"' from "  in ))
   
   ;TODO: POST TO GOOGLE
   ;(gcal/add-calendar-event )
@@ -302,13 +311,28 @@
   {:vid vid :nid nid}
 )
 
+(defn get-test-age [p]
+   "testing why select insert does not add correct age"
+   (test-age (select-keys p [:pid :vtimestamp] ))
+)
+
 ;; return json
 (defn json-response [data & [status]]
     {:status  (or status 200)
     :headers {"Content-Type" "application/hal+json; charset=utf-8"}
     :body    (json/generate-string data)})
 
+(defn json-slurp [body & params]
+ (def bj (json/parse-string (slurp body) true)  )
+ (println (str "bj: " bj) )
+ (println (str "params: " params) )
+ (println (first params ))
+ (if params
+  (merge bj (first params ))
+  bj
+ )
 
+)
 (defroutes routes
   (GET "/" [] home-page)
 
@@ -321,7 +345,7 @@
   (GET  "/people" {params :params} (json-response  (pep-search params) ))
 
   ; add
-  (POST "/person" {params :body} (json-response  (pep-add   (json/parse-string (slurp params) true) ) ))
+  (POST "/person" {body :body} (json-response  (pep-add   (json-slurp body) ) ))
   ; enroll 
   (POST "/person/:pid/enroll" {params :params}  (json-response (person-enroll  params) ))
   ; edit
@@ -331,14 +355,16 @@
   (GET "/person/:pid/visits" [pid] (json-response (visit-search pid) ))
 
   (GET "/visit_task/:vtid" [vtid] (json-response (visit-task vtid) ))
+  (GET "/test/:pid/:vtimestamp" {params :params} (json-response (get-test-age params) ))
 
   ;; INSERT 
   ; schedule
-  (POST "/person/:pid/visit" {body :body params :params }  (json-response (add-visit  params (slurp body))))
+  ;(POST "/person/:pid/visit" {body :body params :params }  (json-response (add-visit  params (slurp body))))
+  (POST "/person/:pid/visit" {body :body params :params }  (json-response (add-visit  (json-slurp body params))))
 
   ;(POST "/person/:pid/visit" {params :params} (json-response (visit-add    params) ))
   ; check in  -- select tasks, score visit
-  (POST "/visit/:vid/checkin" {params :params} (json-response (visit-checkin params) ))
+  (POST "/visit/:vid/checkin" {body :body params :params} (json-response (visit-checkin (json-slurp body params)) ))
 
   ;; visit task
   ; edit

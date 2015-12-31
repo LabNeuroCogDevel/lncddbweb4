@@ -43,14 +43,24 @@ select p.pid,v.vid,v.age,v.vtimestamp,p.fname,p.lname,p.sex,vt.*
 insert into visit 
  (pid,age,vtype,vtimestamp,visitno,vstatus) 
  select 
-   :pid::integer, 
-   date_part('day',(:vtimestamp::timestamp-dob))/365.25,
-   :vtype,
-   :vtimestamp::timestamp,
-   :visitno::integer,
-   'sched'
+   :pid::integer as pid, 
+   date_part('day',(:vtimestamp::timestamp-dob))/365.25 as age,
+   :vtype as vtype,
+   :vtimestamp::timestamp as vtimestamp,
+   :visitno::integer as visitno,
+   'sched' as vstatus
   from person where pid = :pid::integer
 -- vstatus opts: ('sched','complete','checkedin','cancelled','noshow','unkown','other')
+
+-- name: test-age
+-- test above insert-newvisit select command
+select 
+   :pid::integer as pid, 
+   date_part('day',(:vtimestamp::timestamp-dob))/365.25 as age,
+   :vtimestamp::timestamp as vtimestamp,
+   'sched' as vstatus
+  from person where pid = :pid::integer
+
 
 -- name: insert-visittask!
 insert into visit_task (vid,task,measures,files) values (:vid,:task,:measures::jsonb,:files::jsonb)
