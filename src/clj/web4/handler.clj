@@ -316,6 +316,26 @@
    (test-age (select-keys p [:pid :vtimestamp] ))
 )
 
+(defn noshow-visit [p]
+ (println p)
+
+ ;TODO IMPLEMENT -- maybe postgresql trigger ?
+ (noshow-visit! (select-keys p [:vid]) )
+ (def nid (:nid (insert-note-vid-now<! (select-keys params [:vid :ra :note] )) ))
+
+ (insert-visitnote<! {:vid vid :nid nid})
+ (insert-visitaction-now! {:vid vid :action "noshow"  :ra (:ra params )})
+)
+(defn cancel-visit [p]
+ (println p)
+)
+(defn resched-visit [p]
+ (println p)
+)
+
+
+
+
 ;; return json
 (defn json-response [data & [status]]
     {:status  (or status 200)
@@ -324,9 +344,6 @@
 
 (defn json-slurp [body & params]
  (def bj (json/parse-string (slurp body) true)  )
- (println (str "bj: " bj) )
- (println (str "params: " params) )
- (println (first params ))
  (if params
   (merge bj (first params ))
   bj
@@ -359,12 +376,15 @@
 
   ;; INSERT 
   ; schedule
-  ;(POST "/person/:pid/visit" {body :body params :params }  (json-response (add-visit  params (slurp body))))
   (POST "/person/:pid/visit" {body :body params :params }  (json-response (add-visit  (json-slurp body params))))
 
-  ;(POST "/person/:pid/visit" {params :params} (json-response (visit-add    params) ))
   ; check in  -- select tasks, score visit
   (POST "/visit/:vid/checkin" {body :body params :params} (json-response (visit-checkin (json-slurp body params)) ))
+
+  ; EDIT
+  (POST "/visit/:vid/noshow"  {body :body params :params }  (json-response (noshow-visit  (json-slurp body params))))
+  (POST "/visit/:vid/cancel"  {body :body params :params }  (json-response (cancel-visit  (json-slurp body params))))
+  (POST "/visit/:vid/resched" {body :body params :params }  (json-response (resched-visit (json-slurp body params))))
 
   ;; visit task
   ; edit

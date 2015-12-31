@@ -59,21 +59,25 @@
 
 ; --- error
 (defonce error-state (atom {:error [] :warning [] :msg [] }))
+
+; add to the message queue
 (defn add-error-state! [r]
+ (if (nil? r)
+  ; if r is empty, that itself is an error
+  (swap! error-state assoc :error (conj (@error-state :error) "no response for last action!")) 
+  ; for each of the message types, add any existing to the message queue
   (doseq [k [:error :warning :msg]]
     (when (r k)
-    (swap! error-state assoc k (conj (@error-state k) (r k))) ))
-    ;(js/console.log (str @error-state))
-  ;  (do
-  ;   (js/console.log "add to error " (r k) " now: " (str @error-state )
-  ;   (swap! error-state assoc k  (conj (@error-state k) (r k) ) ))
-  ;  )) msgs))
+    (swap! error-state assoc k (conj (@error-state k) (r k))) )))
 )
+; remove from message queue
 (defn rm-error [msgtype n]
  (def newlist (map-indexed (fn[i m] (when (not(= n i)) m))  (msgtype @error-state) ))
  (swap! error-state assoc msgtype newlist)
  ;(swap! error-state [msgtype n] nil )
 )
+
+; display a message
 (defn idv-msg [msgtype msgs]
   (doall 
   (map-indexed (fn[n msg] 
@@ -85,6 +89,8 @@
      ]) 
    msgs ))
 )
+
+;display all messages
 (defn msg-view-comp []
  [:div.msgs
     (doall (map #(idv-msg % (% @error-state) ) [:msg :error :warning] ))
@@ -376,21 +382,41 @@
   ]
 )
 
+; do /vist/id/{noshow,cancel,resched}
 (defn update-visit [how doc]
- (add-error-state! {:msg (str how doc "hey there!")})
- ;(js/console.log how (str doc))
+  (POST (str "/visit/" (:vid doc) "/" how  )
+       :keywords? true
+       :format :json
+       :response-format :json 
+       :params doc
+       :handler (fn [response] 
+            ; print 
+            (js/console.log how " response:" (type response) (str response) )
 
+            (add-error-state! response)
+            ; update visit list again
+            (set-person-visits! (:pid @person-state))
+       )
+  )
+)
+(defn update-visit-has-note [how doc]
+ (if (clojure.string/blank? (:note doc))
+   (add-error-state! {:warning (str "can not " how " need a note!")})
+   (update-visit how doc)
+ )
 )
 
+
 (defn visit-idv-actions [visit]
-  (let [doc (atom {:note "" :date {} })] 
+  ; TODO: use current visitdate as date
+  (let [doc (atom {:note "" :date {} :vid (visit :vid) :ra "testRA" })] 
   (fn[]
       [:div.visitactions
        [bind-fields idv-vid-form doc]
        [:a {:href (str "#/visit/" (visit :vid) "/checkin" ) } "checkin" ]"|"
-       [:a {:on-click #(update-visit "noshow" @doc) } "noshow"  ]"|"
-       [:a {:on-click #(update-visit "cancel" @doc) } "cancel"  ]"|"
-       [:a {:on-click #(update-visit "resched" @doc) } "resched" ]
+       [:a {:on-click #(update-visit-has-note "noshow" @doc) } "noshow"  ]"|"
+       [:a {:on-click #(update-visit-has-note "cancel" @doc) } "cancel"  ]"|"
+       [:a {:on-click #(update-visit-has-note "resched" @doc) } "resched" ]
       ]
   )
   )
