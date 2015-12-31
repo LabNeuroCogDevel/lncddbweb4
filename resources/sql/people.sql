@@ -10,6 +10,7 @@ from person p where lower(concat(fname,' ',lname)) ilike concat('%',lower(:name)
 -- list people:
 -- with
 --  :eid, :fullname, :sex, :hand,:etype,:study,:mincount,:minage,:maxage, :offset
+-- TODO: ignores 0 count people?
 select 
  p.*,
  date_part('day',(now()-dob))/365.25 as curage,
@@ -35,9 +36,12 @@ where
            ilike concat('%',:fullname,'%') and
   p.sex    ilike concat('%',:sex,'%')      and
   p.hand   ilike concat('%',:hand,'%')     and
-  e.id     ilike concat('%',:eid,'%')      and
-  e.etype  ilike concat('%',:etype,'%')    and
-  vs.study ilike concat('%',:study,'%')    
+  (e.id     ilike concat('%',:eid,'%')   or
+   e.id     is null)                       and
+  (e.etype  ilike concat('%',:etype,'%') or
+   e.etype  is null)                       and
+  (vs.study ilike concat('%',:study,'%') or
+   vs.study is null)
   ) or (p.pid = :pid  )
 group by p.pid
 having 
