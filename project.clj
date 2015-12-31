@@ -51,6 +51,8 @@
 
                  ; pretty dates in js
                  [com.andrewmcveigh/cljs-time "0.3.14"]
+                 ; and on the server
+                 [clj-time "0.11.0"]
                  ; date picker
                  [cljs-pikaday "0.1.2"]
                  ; also include css: https://raw.githubusercontent.com/dbushell/Pikaday/master/css/pikaday.css

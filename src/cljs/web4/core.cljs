@@ -57,6 +57,30 @@
 ;; -------------------------
 ;; Models?
 
+; --- error
+(defonce error-state (atom {:error [] :warning [] :msg [] }))
+(defn add-error-state [k r]
+  (when (r k) 
+    (swap! error-state assoc k  (conj (@error-state k) (r k) ) ))
+    (js/console.log "error state now: " (str @error-state ))
+)
+(defn append-error-state! [r]
+ (add-error-state :error   r)
+ (add-error-state :warning r)
+ (add-error-state :msg     r)
+)
+(defn msg-div [msg]
+    [:div msg ]
+)
+(defn msg-view-comp []
+ [:div.msgs
+    (msg-div (map #(msg-div % ) (@error-state :error) )  ) 
+    [:a {:on-click #(swap! error-state :error conj "A" ) } "clear" ]
+    ;(msg-div (map #(msg-div % ) (@error-state :warning) ))  
+    ;(msg-div (map #(msg-div % ) (@error-state :msg) )    )
+ ]
+)
+
 ;--- person+visit
 
 ; contains all the visits
@@ -234,6 +258,61 @@
     ]
    ]
 )
+(defn add-person! [doc]
+ (def dob (apply tc/date-time (vals (select-keys (doc :dob ) [:year :month :day ] )) ))
+ (def sendpdata (merge (select-keys doc [:fname :lname :sex :hand :source ])  {:dob (str dob)} ) )
+ (js/console.log (str "sending" sendpdata) )
+ (POST "/person"
+       :keywords? true
+       :format :json
+       :response-format :json 
+       :params sendpdata
+       :handler (fn [response] 
+            ; print 
+            (js/console.log "response:" (type response) (str response) )
+
+            ; TODO
+            ; check response, append to error messagse
+            (js/console.log "calling append-error state on above")
+            (append-error-state! response)
+
+            ; refresh search, hopefully the new guy is there
+            ; MAYBE join first and last in the pep-search ?
+            (get-pep-search!)
+       )
+  )
+)
+
+(def add-person-form 
+ [:div.personaddform
+   ; study and cohort
+   [:div.row
+     [:div.col-xs-4 [:input.form-control {:field :text :id :fname :placeholder "first"}] ]
+     [:div.col-xs-4 [:input.form-control {:field :text :id :lname :placeholder "last" }] ]
+     [:div.col-xs-4 [:div {:field :datepicker :id :dob :date-format "yyyy/mm/dd" :inline true}]]
+   ]
+   [:div.row
+     [:div.col-xs-4 [:input.form-control {:field :text :id :sex :placeholder "M|F" }] ]
+     [:div.col-xs-4 [:input.form-control {:field :text :id :hand :placeholder "R|L|U|A" }] ]
+     [:div.col-xs-4 [:input.form-control {:field :text :id :source :placeholder "source" }] ]
+
+   ]
+ ]
+)
+ (defn add-person-comp []
+  (let [
+     ; use name form search
+     ; break into first and last
+     names (clojure.string/split (:fullname @pep-search-state) #"\s+" )
+     doc (atom {:fname (get names 0) :lname (get names 1) :sex "" :dob {:year 2010 :month 1 :day 1} :hand ""})
+    ]
+    (fn []
+     [:div 
+       [bind-fields add-person-form doc]
+       [:div.col-xs-4 [:div.btn.btn-default {:on-click #(add-person! @doc) } "Add Person"  ]]
+     ]
+    )
+ ))
 
 (defn search-comp []
   [:div ;[:h1 "LNCDWEB"]
@@ -241,6 +320,9 @@
     ;[:div (str @pep-search-state) ]
     [:div (pep-search-form) ]
     [:div (pep-list-comp) ]
+    (when (empty? @pep)
+       [:div [(add-person-comp)] ]
+    )
    ]
   ]
 )
@@ -481,13 +563,14 @@
 ;; -------- all combin
 (defn pep-visit-comp []
  [:div 
+   (msg-view-comp )
    (search-comp)
    (person-comp)
  ]
 )
 
 (defn search-page []
- (pep-visit-comp)
+  (pep-visit-comp)
 )
 
 ;; -------------------------

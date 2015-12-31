@@ -17,6 +17,7 @@
             [cheshire.core :as json]
             ; json <-> PGobject 
             [web4.jdbcjson]
+            ; and on the server
             ; work between types
             [clojure.data.json :as cjson]
 
@@ -198,14 +199,16 @@
 
 (defn pep-add [params] 
   (println "in: " params)
+
   (def params-keys [:fname :lname :dob :source :sex :hand])
   (def params-nonil (reduce (fn [m k] (update-in m [k] #(or % "none")  )) params params-keys   ) )
+
   (println "no nil: " params-nonil)
   ; make sure sex and hand are okay  MFU and LRU 
   (def submitparams 
    (merge (select-keys params-nonil params-keys) 
     {:sex  (match-or-U #"(?i)^[MF]$" (:sex  params))
-     :hand (match-or-U #"(?i)^[RL]$" (:hand params))})
+     :hand (match-or-U #"(?i)^[RLAU]$" (:hand params))})
   ) 
 
   (println "final: " params-nonil)
@@ -257,6 +260,7 @@
 (defn add-visit [urlp body]
   (println (str urlp body))
   
+  ; TODO: fix time conversion
   (def params 
     (update 
      (merge urlp (json/parse-string body true))
@@ -264,6 +268,7 @@
      tc/to-date-time
     )
   )
+  (println (str "timestamp:"  "'"(:vtimestamp params)"' from "  body ))
   
   ;TODO: POST TO GOOGLE
   ;(gcal/add-calendar-event )
@@ -287,11 +292,12 @@
      ;insert into visit_study (vid,study,cohort) values (:vid,:study,:cohort)
      (insert-visitstudy! (merge {:vid vid} (select-keys params [:study :cohort])))
   ))
-  (println params)
   ; -- name: insert-newvisit!
   ; -- inserts a visit
   ; insert into visit (pid,age,vtype,vtimestamp,vstatus) values (:pid,:age,:vtype,:vdate,'sched')
   ; -- opts: ('sched','complete','checkedin','cancelled','noshow','unkown','other')
+
+  ;TODO: check and send error?
 
   {:vid vid :nid nid}
 )
@@ -315,7 +321,7 @@
   (GET  "/people" {params :params} (json-response  (pep-search params) ))
 
   ; add
-  (POST "/people" {params :params} (json-response  (pep-add    params) ))
+  (POST "/person" {params :body} (json-response  (pep-add   (json/parse-string (slurp params) true) ) ))
   ; enroll 
   (POST "/person/:pid/enroll" {params :params}  (json-response (person-enroll  params) ))
   ; edit
