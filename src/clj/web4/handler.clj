@@ -46,10 +46,15 @@
 ;  * list-tasks-by-vid
 ;  * get-visit-task-by-id
 ;  * insert-newvisit<! 
+;  * get-idv-visit
 (defqueries "sql/visits.sql" {:connection db-spec})
+
 
 ; * insert-note
 (defqueries "sql/note.sql" {:connection db-spec})
+; * list-study
+; * list-tasks
+(defqueries "sql/study.sql" {:connection db-spec})
 
 ;; http://blog.00null.net/clojure-yesql-and-postgesql-arrays/
 ; posgresql arrays 
@@ -164,15 +169,30 @@
   ;     ;                  % ) ) )
   ;   >>>>>>> dc52f2bc0a8b6c77ff28888cbbb3099cf741222f
 ) 
+; wrap in data key of map if not already a map
+(defn parse-sql-return [r]
+ (println (str "returned from sql: '" (type r)"' " r ))
+ ;(if (nil? (re-matches #"^class.*|.*Map.*" (str (type r))))
+ (if (nil? (re-matches #".*Map.*" (str (type r))))
+   {:data r}
+   r
+ )
+)
 
 (defn sql-add-error 
  "run yesql function 'sqlf' with 'params', return hasmap that has error
   null if no error, error: str exception if there is"
  [sqlf params]
- (println "* sql-to-submit: " params)
+ (println "* running sql with params: " params)
  (try 
-    (conj {:error nil} (sqlf params ) )
-    (catch Exception e (hash-map :error (str e)  ) ) 
+    (conj {:error nil} (doall (parse-sql-return (sqlf params )) ))
+    (catch Exception e 
+      (let [estr (str e) ]
+            ;etrc (apply str (interpose "\n\t" (.printStackTrace (.getNextException e))) )]
+        (println (str "ERROR: "  e) )
+        (.printStackTrace (.getNextException e))
+        (hash-map :error  (str "ERROR: " estr)) )
+     )
  )
 )
 
@@ -180,9 +200,8 @@
 (defn visit-task  
  "get a specific task by id"
  [vtid]
- ;TODO checks
  ; Cannot JSON encode object of class: class org.postgresql.util.PGobject:
- (get-visit-task-by-id {:vtid (Integer. vtid)})
+ (sql-add-error get-visit-task-by-id {:vtid (Integer. vtid)})
 )
 
 
@@ -249,6 +268,7 @@
              :content "width=device-width, initial-scale=1"}]
      (include-css (if (env :dev) "css/site.css" "css/site.min.css"))
      (include-css "//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap-theme.min.css")
+     (include-css "css/reagent-forms.css")
      ; date picker
      [:style (-> "reagent-forms.css" clojure.java.io/resource slurp) ]
    ]
@@ -270,6 +290,8 @@
 ;    )
 ;  )
 ;  (println (str "timestamp:"  "'"(:vtimestamp params)"' from "  body ))
+
+; OLD
 (defn add-visit [params]
 
   ;(def params 
@@ -285,7 +307,7 @@
   ;  (reduce (fn [x y] (update-in x [y]  #(Integer. %) )) params [:pid] )
   ;)
 
-  (def vid (:vid (insert-newvisit<! (select-keys params [:pid :vtype :vnum :visitno :vtimestamp  ]) ) ))
+  (def vid (:vid (insert-newvisit<! (select-keys params [:pid :vtype :visitno :visitno :vtimestamp  ]) ) ))
   (def nid (:nid (insert-note-now<! (select-keys params [:pid :ra :note] )) ))
 
   (println (str "added vid: " vid))
@@ -311,6 +333,11 @@
   {:vid vid :nid nid}
 )
 
+(defn add-summary-visit [params]
+  (sql-add-error insert-visit-summary! (select-keys params [:pid,:vtype,:vtimestamp,:visitno,:ra,:note,:study,:cohort]))
+  ;TODO google cal
+)
+
 (defn get-test-age [p]
    "testing why select insert does not add correct age"
    (test-age (select-keys p [:pid :vtimestamp] ))
@@ -319,15 +346,14 @@
 (defn noshow-visit [p]
  (println p)
 
- ;TODO IMPLEMENT -- maybe postgresql trigger ?
- (noshow-visit! (select-keys p [:vid]) )
- (def nid (:nid (insert-note-vid-now<! (select-keys params [:vid :ra :note] )) ))
+ (insert-visitaction-now! (merge {:action "noshow"} (select-keys p [:vid :ra]) ))
+ (def nid (:nid (insert-note-now<! (select-keys params [:vid :ra :note] )) ))
+ (insert-visitnote<! {:vid (:vid p) :nid nid})
 
- (insert-visitnote<! {:vid vid :nid nid})
- (insert-visitaction-now! {:vid vid :action "noshow"  :ra (:ra params )})
 )
 (defn cancel-visit [p]
- (println p)
+  (println (str "cancel: " p))
+  (sql-add-error cancel-visit!  (select-keys p [:vid]))
 )
 (defn resched-visit [p]
  (println p)
@@ -368,15 +394,24 @@
   ; edit
   (POST "/person/:pid/edit" {params :params} (json-response (person-edit  params) ))
 
+  ;; lists for autocompleting
+  (GET "/study/studies" [] (json-response (map :study (list-studies)) ))
+  (GET "/study/cohorts" [] (json-response (map :cohort (list-cohorts)) ))
+  (GET "/study/vtypes"  [] (json-response (map :vtype (list-visittypes)) ))
+  (GET "/study/tasks"   [] (json-response             (list-tasks) ))
+
   ;;visits
   (GET "/person/:pid/visits" [pid] (json-response (visit-search pid) ))
 
+
   (GET "/visit_task/:vtid" [vtid] (json-response (visit-task vtid) ))
+  (GET "/visit/:vid" [vid] (json-response (sql-add-error get-idv-visit {:vid vid}) ))
   (GET "/test/:pid/:vtimestamp" {params :params} (json-response (get-test-age params) ))
 
   ;; INSERT 
   ; schedule
-  (POST "/person/:pid/visit" {body :body params :params }  (json-response (add-visit  (json-slurp body params))))
+  (POST "/person/:pid/visit_old" {body :body params :params }  (json-response (add-visit  (json-slurp body params))))
+  (POST "/person/:pid/visit" {body :body params :params }  (json-response (add-summary-visit  (json-slurp body params))))
 
   ; check in  -- select tasks, score visit
   (POST "/visit/:vid/checkin" {body :body params :params} (json-response (visit-checkin (json-slurp body params)) ))

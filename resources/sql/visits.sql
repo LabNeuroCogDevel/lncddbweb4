@@ -62,6 +62,9 @@ select
   from person where pid = :pid::integer
 
 
+-- name: get-idv-visit
+select * from visit_person_view where vid = :vid::integer
+
 -- name: insert-visittask!
 insert into visit_task (vid,task,measures,files) values (:vid,:task,:measures::jsonb,:files::jsonb)
 
@@ -72,6 +75,10 @@ insert into visit_action (vid,action,ra,vatimestamp) values (:vid,:action::statu
 -- name: insert-visitaction-now!
 insert into visit_action (vid,action,ra,vatimestamp) values (:vid,:action::status,:ra,now())
 
+-- name: noshow-visit! 
+-- TODO: dont use this
+insert into visit_action (vid,action,ra,vatimestamp) values (:vid,'noshow',:ra,now())
+
 -- name: insert-visitstudy! 
 insert into visit_study (vid,study,cohort) values (:vid,:study,:cohort)
 
@@ -80,6 +87,17 @@ insert into visit_note (vid,nid) values (:vid,:nid)
 
 -- name: insert-visitdrop! 
 insert into visit_drop (vid,did) values (:vid,:did)
+
+
+-- name: cancel-visit!
+-- delete a visit -- only works if we have not enrolled, only have status of sched, and have no tasks
+delete from visit where vid = :vid::integer
+
+-- name: insert-visit-summary!
+-- using insert trigger on visit_summary view to insert everything at once
+insert into visit_summary (pid,vtype,vtimestamp,visitno,ra,note,study,cohort) 
+    values (:pid::integer,:vtype,:vtimestamp::timestamp,:visitno::integer,:ra,:note,:study,:cohort);
+
 
 
 -- name: list-visit_notes

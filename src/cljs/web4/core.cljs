@@ -54,6 +54,7 @@
  (aset (.-location js/window) "hash" url)
  (secretary/dispatch! url)
 )
+
 ;; -------------------------
 ;; Models?
 
@@ -97,6 +98,16 @@
  ]
 )
 
+
+; --- help that depends on error state
+; get has the same call
+; most places
+(defn get-json [url handlefn]
+   (GET url :keywords? true :response-format :json 
+            :handler (fn[r]  (do (add-error-state! r) (handlefn r)) ))
+     
+)
+
 ;--- person+visit
 
 ; contains all the visits
@@ -106,11 +117,27 @@
   (and (:pid @person-state) (> (:pid @person-state) 0) )
 )
 
+;
+(defonce autocomplete-lists (atom {}))
+(defn get-autocomplete-lists [opttyp]
+   (GET (str "/study/" (name opttyp)) 
+       :keywords? true :response-format :json 
+       :handler #(swap! autocomplete-lists assoc opttyp %))
+)
+(defn get-autocomplete-lists! []
+  (doseq [opttyp [:cohorts :studies :vtypes :tasks ] ] (get-autocomplete-lists opttyp))
+  ;(js/console.log "updated add visit form options: " (str @autocomplete-lists))
+)
+(defn visit-options-source [opttyp text]
+ ;(js/console.log text (str  (opttyp @autocomplete-lists)))
+ (filter #(-> % (.toLowerCase) (.indexOf text) (> -1)) (opttyp @autocomplete-lists))
+)
+
 ; contains how to display the visits
 (defonce visit-state-display (atom {:collapsed false}))
 
 (defn set-person-visits! [pid]
-  (js/console.log  pid)
+  (js/console.log  "setting person info for " pid)
    (GET (str "/person/" pid "/visits" ) 
        :keywords? true 
        :response-format :json 
@@ -134,6 +161,16 @@
    )
 
 )
+
+; -- single visit (checkin)
+(defonce checkin-data (atom {:vid 0}))
+
+(defn set-visit! [vid]
+ (get-json (str "/visit/" vid) 
+    (fn [response]
+     (reset! checkin-data (first (:data response)))
+     (js/console.log "resonse" (first (:data response) ))
+)))
 
 ;--- note
 (defn render-note [ni]
@@ -171,7 +208,6 @@
   ;(swap! pep set-select-on-pid pid pep)
 )
 
-
 (defn render-person-row [si]
  ^{:key (:pid si)} 
   ;[:tr  { :on-click #(set-person-visits! (:pid si))}
@@ -195,7 +231,6 @@
    ;[:td (first (si :ids)) ]
 ])
 
-
 (defn get-pep-search! []
   ;(js/console.log (ajax.core/uri-with-params "/people" @pep-search-state)  )
   (GET (ajax.core/uri-with-params "/people" @pep-search-state) 
@@ -211,9 +246,46 @@
   )
 )
 
+(def add-person-form 
+ [:div.personaddform
+   ; study and cohort
+   [:div.row
+     [:div.col-xs-4 [:input.form-control {:field :text :id :fname :placeholder "first"}] ]
+     [:div.col-xs-4 [:input.form-control {:field :text :id :lname :placeholder "last" }] ]
+     [:div.col-xs-4 [:div {:field :datepicker :id :dob :date-format "yyyy/mm/dd" :inline true}]]
+   ]
+   [:div.row
+     [:div.col-xs-4 [:input.form-control {:field :text :id :sex :placeholder "M|F" }] ]
+     [:div.col-xs-4 [:input.form-control {:field :text :id :hand :placeholder "R|L|U|A" }] ]
+     [:div.col-xs-4 [:input.form-control {:field :text :id :source :placeholder "source" }] ]
+
+   ]
+ ]
+)
+
+
+
+
+(declare search-page)
+; SEARCH ROUTE -- here b/c search-path needs to be defined before update-pep-search!
+(secretary/defroute search-path "/search" [query-params]
+  ;(js/console.log (pr-str  query-params) query-params)
+  (doseq [pk (keys @pep-search-state)] 
+    (let [v (pk query-params)]
+    (when (not(nil? v))
+     (swap! pep-search-state assoc pk v ))
+  ))
+  (get-pep-search!)
+  (get-autocomplete-lists!)
+  (session/put! :current-page #'search-page ))
+
+
 (defn update-pep-search! [k v] 
   ;(js/console.log "update!" (str k) (str v))
   (swap! pep-search-state assoc k v )
+
+  ;set url -- so we can copy paste searches
+  (aset (.-location js/window) "hash" (search-path {:query-params @pep-search-state} ) )
 
   ;(when (> (count (str v)) 3)  
      (js/console.log "searching:" (str v) (count v) )
@@ -244,6 +316,7 @@
 (defn study-dropdown [f]
   (select-dropdown :study ["" "RewardR01" "RewardR21" "MEGEmo" "CogR01"] #(f :study))
 )
+
 (defn pep-search-form []
   ;(get-pep-search!)
   ;INPUTS
@@ -266,6 +339,7 @@
              :on-click incoffset! }]
  ]
 )
+
 (defn pep-list-comp []
   [:table  {:class "table table-striped table-condensed table-hover"} 
     [:thead [:tr (doseq [x  ["ids" "name" "info" "last visit" "nvisits"]] ^{:key (str "header" x) }[:th x]) ] ]
@@ -274,6 +348,7 @@
     ]
    ]
 )
+
 (defn add-person! [doc]
  (def dob (apply tc/date-time (vals (select-keys (doc :dob ) [:year :month :day ] )) ))
  (def sendpdata (merge (select-keys doc [:fname :lname :sex :hand :source ])  {:dob (str dob)} ) )
@@ -299,23 +374,7 @@
   )
 )
 
-(def add-person-form 
- [:div.personaddform
-   ; study and cohort
-   [:div.row
-     [:div.col-xs-4 [:input.form-control {:field :text :id :fname :placeholder "first"}] ]
-     [:div.col-xs-4 [:input.form-control {:field :text :id :lname :placeholder "last" }] ]
-     [:div.col-xs-4 [:div {:field :datepicker :id :dob :date-format "yyyy/mm/dd" :inline true}]]
-   ]
-   [:div.row
-     [:div.col-xs-4 [:input.form-control {:field :text :id :sex :placeholder "M|F" }] ]
-     [:div.col-xs-4 [:input.form-control {:field :text :id :hand :placeholder "R|L|U|A" }] ]
-     [:div.col-xs-4 [:input.form-control {:field :text :id :source :placeholder "source" }] ]
-
-   ]
- ]
-)
- (defn add-person-comp []
+(defn add-person-comp []
   (let [
      ; use name form search
      ; break into first and last
@@ -342,7 +401,6 @@
    ]
   ]
 )
-
 
 ;; -------
 ;; Person/Visit
@@ -400,7 +458,7 @@
   )
 )
 (defn update-visit-has-note [how doc]
- (if (clojure.string/blank? (:note doc))
+ (if (and (not(= how "cancel") ) (clojure.string/blank? (:note doc)))
    (add-error-state! {:warning (str "can not " how " need a note!")})
    (update-visit how doc)
  )
@@ -413,7 +471,7 @@
   (fn[]
       [:div.visitactions
        [bind-fields idv-vid-form doc]
-       [:a {:href (str "#/visit/" (visit :vid) "/checkin" ) } "checkin" ]"|"
+       [:a {:on-click #(gotohash (str "#/visit/" (visit :vid) "/checkin" )) } "checkin" ]"|"
        [:a {:on-click #(update-visit-has-note "noshow" @doc) } "noshow"  ]"|"
        [:a {:on-click #(update-visit-has-note "cancel" @doc) } "cancel"  ]"|"
        [:a {:on-click #(update-visit-has-note "resched" @doc) } "resched" ]
@@ -421,20 +479,9 @@
   )
   )
 )
+
 ;  
 (defn visit-idv-comp [visit]
-    ; before merge
-    ; =======
-    ;  ; :vstatus  :vscore  :visitno  :study :age :vid  :pid  :vtype  :googleuri  :cohort  :vtimestamp 
-    ;   ^{:key (:vid visit)}
-    ;    [:div {:class 'visit} 
-    ;      [:div {:class  "visit-age"    } (:age    visit ) ] 
-    ;      [:div {:class  "visit-type"   } (:vtype  visit ) ] 
-    ;      [:div {:class  "visit-cohort" } (:cohort visit ) ] 
-    ;      [:div {:class  "visit-study"  } (:study  visit ) ] 
-    ;     ; (map #( [:div {:class (str "visit-" (name %) ) } (% visit ) ] )  [:age :study :vtype :cohort :vtimestamp] ) 
-    ;    ]
-    ; >>>>>>> dc52f2bc0a8b6c77ff28888cbbb3099cf741222f
    
    (def scorecolor (colorspctm (visit :vscore)))
    ;(js/console.log "score: " scorecolor (visit :vscore))
@@ -493,6 +540,7 @@
        :handler (fn [response] 
             ; print 
             (js/console.log "response:" (type response) (str response) )
+            (add-error-state! response)
 
             ; TODO
             ; check response, append to error messagse
@@ -506,16 +554,6 @@
 ; visit-form via reagent-forms
 (def visit-form-date 
   [:div
-
-   ; study and cohort
-   [:div.row
-     [:div.col-xs-4 [:input.form-control {:field :text :id :study :placeholder "STUDY"}] ]
-     [:div.col-xs-4 [:input.form-control {:field :text :id :cohort}] ]
-   ]
-   [:div.row
-     [:div.col-xs-4 [:input.form-control {:field :text :id :vtype :placeholder "Type"}] ]
-     [:div.col-xs-4 [:input.form-control {:field :text :id :visitno :placeholder "VNUM"}] ]
-   ]
 
    ; date, time , duration
    [:div.row
@@ -531,10 +569,42 @@
       [:div.input-group-addon "hours"]
     ]]
    ]
+
+   ; study and cohort
    [:div.row
-     [:textarea.form-control { :field :textarea :id :note :placeholder "NOTES"} ] 
+     [:div.col-xs-4 [:div {:field :typeahead 
+                             :input-class "form-control"
+                             :data-source #(visit-options-source :studies %)
+                             :list-class "typeahead-list"
+                             :item-class "typeahead-item"
+                             :highlight-class "highlighted"
+                             :id :study :input-placeholder "STUDY"}] ]
+     [:div.col-xs-4 [:div {:field :typeahead 
+                             :input-class "form-control"
+                             :data-source #(visit-options-source :cohorts %)
+                             :list-class "typeahead-list"
+                             :item-class "typeahead-item"
+                             :highlight-class "highlighted"
+                             :id :cohort :input-placeholder "cohort"}] ]
    ]
+
+   ; type and number
+   [:div.row
+     [:div.col-xs-4 [:div {:field :typeahead 
+                             :input-class "form-control"
+                             :data-source #(visit-options-source :vtypes %)
+                             :list-class "typeahead-list"
+                             :item-class "typeahead-item"
+                             :highlight-class "highlighted"
+                             :id :type :input-placeholder "TYPE"}] ]
+     [:div.col-xs-4 [:input.form-control {:field :text :id :visitno :placeholder "VNUM"}] ]
    ]
+
+   ;Notes
+   [:div.row
+     [:div.col-md-8 [:textarea.form-control { :field :textarea :id :note :placeholder "NOTES"} ] ]
+   ]
+  ]
 
    ;[:select {:field :list :id :dur} (map (fn[k] [:option {:key k} k]) [.5 1 1.5 2] )]
    ;[:input.form-control {:field :datepicker :id :visitday :date-format "yyyy-mm-dd" :inline true}]
@@ -545,11 +615,11 @@
  (let [
     showadd (atom false)
     doc (atom {:visitday {:year 2016 :day 01 :month 01}  
-                :time "00:00"
+                :time "13:00"
                 :visitno 1
                 :dur 1 
                 :ra "testRA"
-                :cohort "control"
+                :cohort "Control"
                 :study "" 
                 :vtype "Scan"
                 :note ""} )]
@@ -587,20 +657,28 @@
    (map visit-idv-comp (:visits @person-state)) ]
  ]
 )
+;; -------- all combin
+(defn pep-visit-comp []
+ [:div 
+   (msg-view-comp )
+   (search-comp)
+   (person-comp)
+ ]
+)
+
+(defn search-page []
+  (pep-visit-comp)
+)
 
 ; ----- tasks
 (def visit-task-state (atom [{:vtid 0}]))
 
 (defn set-visit-task! [vtid]
   (js/console.log  vtid)
-  (GET (str "/visit_task/" vtid  ) 
-       :keywords? true 
-       :response-format :json 
-       :handler (fn [response] 
-            ;(js/console.log "response:" (type response) (str response) )
-            (reset! visit-task-state response)
-       )
-  )
+  (get-json (str "/visit_task/" vtid) 
+    (fn [response]
+     (reset! visit-task-state (:data response))
+     (js/console.log "visittask resonse: " (first (:data response) ))) )
 )
 
 (defn inputform [ob]
@@ -626,18 +704,6 @@
  ]
 )
 
-;; -------- all combin
-(defn pep-visit-comp []
- [:div 
-   (msg-view-comp )
-   (search-comp)
-   (person-comp)
- ]
-)
-
-(defn search-page []
-  (pep-visit-comp)
-)
 
 ;; -------------------------
 ;; Views
@@ -660,6 +726,118 @@
   [:div [(session/get :current-page)]])
 
 
+; ---- check in
+(defn checkin-visit! [doc]
+ (js/console.log doc)
+)
+; fitlter tasks to those in study and vtype
+(defn set-current-tasks [study vtype studylist]
+     ;(js/console.log study vtype )
+     (filter #(and(= (:study %) study) 
+                    (some? (some #{vtype} (:modes %)) ) )   studylist)
+)
+; set tasks we should have by given the current visit state
+(defn current-tasks []
+  ;(doseq [x (:studys @checkin-data)] (set-current-tasks (:study x) (:vtype @checkin-data)  (:tasks @autocomplete-lists) ) )
+  (let [tasks    (:tasks @autocomplete-lists)
+        studys   (map :study (:studys @checkin-data))
+        vtype    (:vtype @checkin-data)
+       ]
+  (flatten (doall (map #(set-current-tasks % vtype  tasks) studys)  ))
+  ;(js/console.log (str curtasks))
+  ;(flatten curtasks)
+
+))
+; get tasks matching some text
+(defn task-source [text]
+ (distinct (filter #(-> % (.toLowerCase) (.indexOf text) (> -1)) (map #(:task %) (:tasks @autocomplete-lists))))
+)
+(defn checkin-add-task [x]
+  (js/console.log "checkin-add-task hit" x)
+)
+(def checkin-form 
+ [:div.checkin.form
+   [:div.row
+     [:div.col-xs-1
+       [:div.input-group
+         [:input.form-control {:field :text :id :vscore :placeholder "4.5"}] 
+         [:div.input-group-addon "/5"]]
+     ]
+
+     ; Task
+     [:div.col-xs-3 
+		    [:div {:field :typeahead 
+                         :input-class "form-control"
+                         :data-source task-source
+                         :list-class "typeahead-list"
+                         :item-class "typeahead-item"
+                         :highlight-class "highlighted"
+                         :id :task-add :input-placeholder "TASK"}] ]
+
+   ]
+   ; Notes
+   [:div.row
+     [:div.col-md-4 [:textarea.form-control { :field :textarea :id :note :placeholder "NOTES"} ] ]
+   ]
+ ]
+)
+(defn checkin-visit-form-comp []
+ (let [
+    expected-tasks (current-tasks)
+    tasks-only     (doall (map :task expected-tasks ) )
+    doc (atom {
+		    :should-havetasks tasks-only
+          :add-task "" 
+          :tasks tasks-only
+	     	})
+   ]
+   (fn []
+    [:div 
+      [bind-fields checkin-form doc ] 
+       ; (fn[k v {:keys [add-task tasks] :as doc}]
+       ;   (when (some? add-task )
+       ;     ;(js/console.log (str add-task ) (str tasks))
+       ;     (assoc-in doc [:tasks] (conj tasks add-task))
+       ;   ))]
+      [:div "tasks: " (str (:tasks @doc) )]
+      ;[:div.row {:style {:background "blue"}}
+      ;   (doseq [x (:tasks doc)] [:div.task x] )
+      ;]
+      ;[:br {:style {:clear "both"}} ]
+      [:div.col-xs-4 [:div.btn.btn-default {:on-click #(checkin-visit! @doc) } "Checkin"  ]]
+    ]
+   )
+))
+(defn checkin-page []
+ [:div
+   [:h1 (:vtype @checkin-data) " Checkin " [:span.id (:vid @checkin-data)] ]
+
+   ; subject info
+   [:h2 (:fname @checkin-data) " " 
+        (:lname @checkin-data) " " 
+        (-> @checkin-data :age (roundstr 1) str) "yo "
+        (:sex @checkin-data)
+        [:span.id (:pid @checkin-data)]  ]
+
+   ; studies
+   [:ul.checkin.studys  (map (fn[x] ^{:key (vals x)}[:li (:study x) " - " (:cohort x)] ) (:studys @checkin-data) ) ]
+   ; ids
+   [:ul.checkin.ids  (map (fn[x] (when (not(nil? (:id x))) ^{:key (vals x)}[:li (:etype x) ": " (:id x)] ) (:ids @checkin-data) )) ]
+
+   [:div "visit on " (:vtimestamp @checkin-data) ]
+   ; when it's sched. then we can checkin
+   (when (= (:vstatus @checkin-data) "sched" )
+     [(checkin-visit-form-comp)]
+   )
+
+   ; notes
+   (map-indexed (fn[i x] ^{:key (str i "-note")}[:div.checkin.note x] ) (:notes @checkin-data) )
+
+  
+   [:div (str @checkin-data) ]
+ ]
+)
+
 ;; --------
 ;; test reagent form
 ;; ----
@@ -680,21 +858,27 @@
 (secretary/set-config! :prefix "#")
 
 
-(secretary/defroute "/" []
-  (session/put! :current-page #'home-page))
 
-; SEARCH
-(secretary/defroute "/search/:n" [n]
-  ;(set-search-page! n)
+(secretary/defroute "/" []
   (get-pep-search!)
-  (session/put! :current-page #'search-page ))
+  (get-autocomplete-lists!)
+  (session/put! :current-page #'search-page))
+ ; (session/put! :current-page #'home-page))
 
 ; VISIT
 (secretary/defroute "/person/:pid" [pid]
   (js/console.log "routing to person/pid with " pid)
   (set-person-visits! pid)
+  (get-autocomplete-lists!)
   (session/put! :current-page #'person-page))
 
+; visit CHECKIN
+(secretary/defroute "/visit/:vid/checkin" [vid]
+  (js/console.log "routing to person/pid with " vid)
+  (get-autocomplete-lists!)
+  (set-visit! vid)
+  (session/put! :current-page #'checkin-page)
+)
 ; TASK
 (secretary/defroute "/task/:vtid" [vtid]
   (js/console.log vtid)
