@@ -101,7 +101,8 @@
   (println "searching: " search)
   
   ; push hasmap to sql query from yesql function
-  (def res (list-people-by-name-study-enroll search))
+  ;(def res (list-people-by-name-study-enroll search))
+  (def res  (sql-add-error list-people-by-name-study-enroll search))
 
   ;(println  res ) 
   res

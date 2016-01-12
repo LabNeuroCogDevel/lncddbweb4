@@ -61,3 +61,24 @@
 )
 
 
+; ---- things to autocomplete
+(defonce autocomplete-lists (atom {}))
+(defn get-autocomplete-lists [opttyp]
+   (GET (str "/study/" (name opttyp)) 
+       :keywords? true :response-format :json 
+       :handler #(swap! autocomplete-lists assoc opttyp %))
+)
+(defn get-autocomplete-lists! []
+  (doseq [opttyp [:cohorts :studies :vtypes :tasks ] ] (get-autocomplete-lists opttyp))
+  ;(js/console.log "updated add visit form options: " (str @autocomplete-lists))
+)
+
+
+; get tasks matching some text
+(defn task-source [text]
+ (distinct (filter #(-> % (.toLowerCase) (.indexOf text) (> -1)) (map #(:task %) (:tasks @autocomplete-lists))))
+)
+
+; see also :drakula @ https://github.com/rm-hull/inkspot
+;(def colorspctm (cc/gradient :red :green 10) )
+(defonce colorspctm (cc/color-mapper (cc/ui-gradient :miaka 10) 0 5))
