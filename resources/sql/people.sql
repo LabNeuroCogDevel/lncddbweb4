@@ -48,7 +48,7 @@ having
   count(distinct v.vid) >= :mincount               and
   date_part('day',(now()-dob))/365.25 >= :minage   and 
   date_part('day',(now()-dob))/365.25 <= :maxage
-order by lastvisit desc  -- NULLS LAST
+order by lastvisit desc  NULLS LAST
 limit 10
 offset :offset
 

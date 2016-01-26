@@ -47,6 +47,7 @@
 ;  * get-visit-task-by-id
 ;  * insert-newvisit<! 
 ;  * get-idv-visit
+;  * update-vt-measure!
 (defqueries "sql/visits.sql" {:connection db-spec})
 
 
@@ -54,6 +55,7 @@
 (defqueries "sql/note.sql" {:connection db-spec})
 ; * list-study
 ; * list-tasks
+; * list-newest 
 (defqueries "sql/study.sql" {:connection db-spec})
 
 ;; http://blog.00null.net/clojure-yesql-and-postgesql-arrays/
@@ -76,40 +78,6 @@
 )
 
  
-(defn pep-search
-  "search subjects and get visit summaries"
-  [searchmap]
-  ; by default we want these things
-  (def defsearch {:study "%" :eid "%" :etype "%" :hand "%" :fullname "%" :sex "%" :mincount 0 :minage 0 :maxage 200 :offset 0 :pid 0})
-  (def mparms (merge defsearch (select-keys searchmap  (keys defsearch) ))  )
-
-  (println "have:  " mparms) 
-
-  ; earlier invocation
-  ;(def mergesearch (merge defsearch (select-keys searchmap  (keys defsearch) ))   )
-  ;(def search (reduce (fn [m k] (update-in m [k] #(Integer. %))  ) mergesearch   [:mincount :minage :maxage :offset] ) )
-  ;(println search)
-
-  ; make numbers where we should have numbers
-  (def search-int 
-     (reduce (fn [x y] (update-in x [y]  #(Integer. %) )) mparms [:mincount :minage :maxage :offset :pid] )
-  )
-  (def search
-     (reduce (fn [x y] (update-in x [y]  #(if (nil? %) "%" %) )) search-int [:study :etype :hand :fullname :sex] )
-  )
-
-  (println "searching: " search)
-  
-  ; push hasmap to sql query from yesql function
-  ;(def res (list-people-by-name-study-enroll search))
-  (def res  (sql-add-error list-people-by-name-study-enroll search))
-
-  ;(println  res ) 
-  res
-  
-  ; old non-json display
-  ;(html5 (list-people-by-name db-spec subjname ))
-)
 (defn pgsql-obj-to-str
  [k o]
  (println "o: " o)
@@ -197,6 +165,42 @@
  )
 )
 
+
+(defn pep-search
+  "search subjects and get visit summaries"
+  [searchmap]
+  ; by default we want these things
+  (def defsearch {:study "%" :eid "%" :etype "%" :hand "%" :fullname "%" :sex "%" :mincount 0 :minage 0 :maxage 200 :offset 0 :pid 0})
+  (def mparms (merge defsearch (select-keys searchmap  (keys defsearch) ))  )
+
+  (println "have:  " mparms) 
+
+  ; earlier invocation
+  ;(def mergesearch (merge defsearch (select-keys searchmap  (keys defsearch) ))   )
+  ;(def search (reduce (fn [m k] (update-in m [k] #(Integer. %))  ) mergesearch   [:mincount :minage :maxage :offset] ) )
+  ;(println search)
+
+  ; make numbers where we should have numbers
+  (def search-int 
+     (reduce (fn [x y] (update-in x [y]  #(Integer. %) )) mparms [:mincount :minage :maxage :offset :pid] )
+  )
+  (def search
+     (reduce (fn [x y] (update-in x [y]  #(if (nil? %) "%" %) )) search-int [:study :etype :hand :fullname :sex] )
+  )
+
+  (println "searching: " search)
+  
+  ; push hasmap to sql query from yesql function
+  ;(def res (list-people-by-name-study-enroll search))
+  (def res  (sql-add-error list-people-by-name-study-enroll search))
+
+  ;(println  res ) 
+  res
+  
+  ; old non-json display
+  ;(html5 (list-people-by-name db-spec subjname ))
+)
+
 ; find a specific task
 (defn visit-task  
  "get a specific task by id"
@@ -245,8 +249,27 @@
 (defn visit-add     [params] 
  (println params)
 )
+
+; -- turn objects to json string for given keys 'ks' in map 'doc'
+(defn mapkeys-tojson [doc ks]
+ (reduce (fn[m k] (assoc m k (-> m k json/generate-string))) doc ks)
+)
+
 (defn visit-checkin [params] 
- (println params)
+ (let [doc (merge {:ra "webfrontendRA"} 
+                  (select-keys params [:ra :vid :vscore :add-ids :note :tasks]))
+      submit (mapkeys-tojson doc [:add-ids :tasks]) ]
+ ;
+ ;{:vstatus sched, :vscore 5, :add-ids [{:etype LunaID, :id 11469}], :visitno 1, :fname Bart, :age 6.05886379192334, :sex M, :vid 3893, :ids [{:id nil, :etype nil}], :hand R, :studys [{:study MEGEmo, :cohort Control}], :lname Simpson, :note this is not a real visit, :tasks [PVLQuestionnaire fMRIRestingState SpatialWorkingMem ScanSpit], :dob 2010-01-01T05:00:00Z, :pid 1182, :add-task , :notes [TEST Test CogR01 Testing ringreward scan 1], :vtype Scan, :googleuri nil, :vtimestamp 2016-01-23T18:00:00Z}
+ (println "checkin visit! " submit)
+ (sql-add-error checkin-visit! (clojure.set/rename-keys submit {:add-ids :ids}))
+))
+
+
+; update the meassuers part of the visit_task table
+; eg. survey, iq, eyescore
+(defn update-vtm [params]
+  (sql-add-error update-vt-measure! (select-keys params [:vtid :measures] ) )
 )
 
 
@@ -348,7 +371,7 @@
  (println p)
 
  (insert-visitaction-now! (merge {:action "noshow"} (select-keys p [:vid :ra]) ))
- (def nid (:nid (insert-note-now<! (select-keys params [:vid :ra :note] )) ))
+ (def nid (:nid (insert-note-now<! (select-keys p [:vid :ra :note] )) ))
  (insert-visitnote<! {:vid (:vid p) :nid nid})
 
 )
@@ -380,6 +403,9 @@
 (defroutes routes
   (GET "/" [] home-page)
 
+  ;; enroll newest
+  (GET "/newest/enroll/:etype" [etype] 
+        (json-response(sql-add-error list-newest {:etype etype})))
   ;;;;TODO: nest?
 
   ;;; people
@@ -400,6 +426,7 @@
   (GET "/study/cohorts" [] (json-response (map :cohort (list-cohorts)) ))
   (GET "/study/vtypes"  [] (json-response (map :vtype (list-visittypes)) ))
   (GET "/study/tasks"   [] (json-response             (list-tasks) ))
+  (GET "/study/etypes"  [] (json-response             (list-etypes) ))
 
   ;;visits
   (GET "/person/:pid/visits" [pid] (json-response (visit-search pid) ))
@@ -424,6 +451,8 @@
 
   ;; visit task
   ; edit
+  (POST "/task/:vtid" {body :body params :params }  (json-response (update-vtm (json-slurp body params))))
+  ;(GET "task/:vtid" (println "GET TASK NOT DEFINED"))
   ; view
 
   ;; task

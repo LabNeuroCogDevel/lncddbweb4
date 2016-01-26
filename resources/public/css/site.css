@@ -147,3 +147,12 @@ li.visititem {
  border: 3px solid green;
 }
 
+.tasklist { display: inline-block; padding: 8px}
+.task { display: inline-block; padding:5px; margin: 3px; color:white;font-weight:bold;border-radius:10px; }
+.task.addedtask { background-color: #88ff88; }
+.task.should-havetask { background-color: #ff8888; }
+.task.addedtask.should-havetask { background-color: #8888ff; }
+
+.checkin.note {display: block; padding:.5em; }
+h2.checkinhead {clear: both; margin-top: 2em}
+.checkin.note  {margin: .5em; padding: .7em; border-radius: 1em; background-color: #6f9faf}

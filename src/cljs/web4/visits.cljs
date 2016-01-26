@@ -25,7 +25,7 @@
 
 
 ; contains all the visits
-(defonce person-state (atom {:pid 0 :visits []}))
+(defonce person-state (atom {:pid 0 :visits [] :info nil}))
 ; do we have a pesron in the global state
 (defn have-person []
   (and (:pid @person-state) (> (:pid @person-state) 0) )
@@ -57,8 +57,8 @@
                  :keywords? true 
                  :response-format :json 
                  :handler (fn [response] 
-                      ;(js/console.log "response:" (type response) (str response) )
-                      (swap! person-state assoc :info (get response 0))
+                      (js/console.log "setting visit person response:" (type response) (str response) )
+                      (swap! person-state assoc :info (first (:data response )))
                  )
              )
        )
@@ -210,7 +210,7 @@
                              :list-class "typeahead-list"
                              :item-class "typeahead-item"
                              :highlight-class "highlighted"
-                             :id :type :input-placeholder "TYPE"}] ]
+                             :id :vtype :input-placeholder "VISIT TYPE"}] ]
      [:div.col-xs-4 [:input.form-control {:field :text :id :visitno :placeholder "VNUM"}] ]
    ]
 
@@ -235,7 +235,7 @@
                 :ra "testRA"
                 :cohort "Control"
                 :study "" 
-                :vtype "Scan"
+                :vtype ""
                 :note ""} )]
   (fn []
    [:div.visit-form
@@ -309,10 +309,11 @@
  (def info (:info @person-state))
  (def dropinfo (get-in @person-state [:info :maxdrop]))
 
- [:div
-  [:h2 (clojure.string/join " " (:ids info)) (str "(" (:pid @person-state) ")") ]
+ [:div {:class "person-info"}
+  ;[:div "PERSONSTATE:" (str @person-state) ]
+  [:h2 (clojure.string/join " " (:ids info)) [:span.id (:pid @person-state) ] ]
   [:h3 (str (:fname info) " " (:lname info)) ] 
-  (when (not (nil? dropinfo)) [:div "Drop: " dropinfo ])
+  (when (not (nil? dropinfo)) [:div "Drop: " (str dropinfo) ])
  ;[:div
  ;  (edn->hiccup (:info @person-state))
  ;]
@@ -323,9 +324,7 @@
 (defn person-comp []
  [:div {:class "person"} 
 
-   [:div {:class "person-info"}
-      (person-info-comp )
-   ]
+   [person-info-comp ]
 
    (when (have-person)
      [:div {:class "visit-add col-md-5"}

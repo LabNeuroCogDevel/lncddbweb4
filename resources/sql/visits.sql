@@ -109,3 +109,20 @@ select n.* from note n
 -- name: list-visit_tasks
 --  need :vid, will give visit tasks
 select vt.* from visit_task vt where vid = :vid
+
+
+
+-- name: checkin-visit!
+-- check in a visit using instead of trigger on view
+-- insert into visit_checkin_view (vid,ra,vscore,note,ids,tasks) values
+--  (3893,'testRA',4,'TEST CHECKINNOTE', 
+--   '[{"etype": "TestID", "id": "9"}, {"etype": "LunaID", "id": "9"}]'::jsonb,
+--   '["fMRIRestingState","SpatialWorkingMem","ScanSpit"]'::jsonb);
+-- 
+insert into visit_checkin_view (vid,ra,vscore,note,ids,tasks) values
+ (:vid::integer,:ra::text,:vscore::numeric(3),:note::text, :ids::jsonb, :tasks::jsonb);
+
+
+--name: update-vt-measure!
+-- update meassures in visit task
+update visit_task set measures = :measures::jsonb where vtid = :vtid::numeric;

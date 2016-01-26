@@ -59,6 +59,11 @@
             :handler (fn[r]  (do (m/add-error-state! r) (handlefn r)) ))
      
 )
+(defn post-json [url doc handlefn]
+  (POST url :keywords? true :format :json :response-format :json 
+       :params doc
+       :handler (fn[r]  (do (m/add-error-state! r) (handlefn r)) ))
+)
 
 
 ; ---- things to autocomplete
@@ -69,10 +74,15 @@
        :handler #(swap! autocomplete-lists assoc opttyp %))
 )
 (defn get-autocomplete-lists! []
-  (doseq [opttyp [:cohorts :studies :vtypes :tasks ] ] (get-autocomplete-lists opttyp))
-  ;(js/console.log "updated add visit form options: " (str @autocomplete-lists))
+  (doseq [opttyp [:cohorts :studies :vtypes :tasks :etypes ] ] (get-autocomplete-lists opttyp))
+  (js/console.log "updated add visit form options: " (str @autocomplete-lists))
 )
 
+; get part given text (part like :tasks, :cohorts, or etc)
+; use getfn to exract indivduals, probably just want 'str'
+(defn autocomplete-source [part getfn text ]
+ (distinct (filter #(-> % (.toLowerCase) (.indexOf text) (> -1)) (map #(getfn %) (part @autocomplete-lists))))
+)
 
 ; get tasks matching some text
 (defn task-source [text]
@@ -82,3 +92,19 @@
 ; see also :drakula @ https://github.com/rm-hull/inkspot
 ;(def colorspctm (cc/gradient :red :green 10) )
 (defonce colorspctm (cc/color-mapper (cc/ui-gradient :miaka 10) 0 5))
+
+; taken from
+; http://batsov.com/articles/2013/01/20/drop-nth-in-clojure/
+(defn drop-nth
+  [n coll]
+  (->> coll
+       (map vector (iterate inc 1))
+       (remove #(zero? (mod (first %) n)))
+       (map second)))
+
+
+; http://stackoverflow.com/questions/8056645/returning-duplicates-in-a-sequence
+(defn dups [seq]
+  (for [[id freq] (frequencies seq)  ;; get the frequencies, destructure
+        :when (> freq 1)]            ;; this is the filter condition
+   id))                              ;; just need the id, not the frequency
