@@ -31,9 +31,6 @@
                  [org.clojure/clojurescript "1.7.122" :scope "provided"]
                  [secretary "1.2.3"]
                  
-                 ; handle authentication
-                 [com.cemerick/friend "0.2.1" :exclusions [org.clojure/core.cache] ]
-                 
                  
                  ; get data
                  [org.clojure/core.async "0.1.346.0-17112a-alpha"]

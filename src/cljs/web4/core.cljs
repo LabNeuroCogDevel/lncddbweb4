@@ -107,7 +107,7 @@
 (secretary/defroute "/visit/:vid/checkin" [vid]
   (js/console.log "routing to person/pid with " vid)
   (h/get-autocomplete-lists!)
-  (v/set-visit! vid)
+  (checkin/set-visit-checkin! vid)
   (session/put! :current-page #'checkin-page)
 )
 

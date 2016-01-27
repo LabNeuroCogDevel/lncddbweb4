@@ -1,9 +1,10 @@
 (ns web4.handler
   (:require [compojure.core :refer [GET POST defroutes]]
             [compojure.route :refer [not-found resources]]
+            [compojure.handler :refer (site)]
             [ring.middleware.defaults :refer [site-defaults wrap-defaults]]
             [hiccup.core :refer [html]]
-            [hiccup.page :refer [include-js include-css]]
+            [hiccup.page :refer [include-js include-css html5]]
             [prone.middleware :refer [wrap-exceptions]]
             [ring.middleware.reload :refer [wrap-reload]]
             [environ.core :refer [env] ]
@@ -28,6 +29,13 @@
 
             ; google cal
             ;[google-apps-clj.core :as gcal]
+
+            ; authetication
+            [cemerick.friend :as friend]
+            (cemerick.friend [workflows :as workflows] 
+                             [credentials :as creds]) 
+				[hiccup.element :as e]
+
 
            ))
 
@@ -65,6 +73,34 @@
 ;   (jdbc/with-db-transaction [conn db-spec]
 ;       (let [row (first (-get-snippet conn snippet-id))]
 ;             (update-in row [:tags] (fn [ts] (vec (.getArray ts)))))))
+
+;;;;
+
+
+
+
+;;;; AUTHENTICATION
+(def users {"RA" {:username "RA" :password (creds/hash-bcrypt "RA") :role #{::RA}}
+            "test" {:username "test" :password (creds/hash-bcrypt "test") :roles #{::admin}}})
+
+(defn loginas [req]
+ [:html
+   [ :p  "You have successfully authenticated as "
+       (friend/current-authentication)]
+ ]
+)
+
+(defn getauth [url fun] 
+  (GET url [req] (friend/authenticated fun)))
+
+(defn auth-user [user]
+  (println (str "USER:" user))
+  {:useranme "RA"}
+)
+
+(defn add-ra [m]
+  (assoc m :ra (:username (friend/current-authentication)))
+)
 
 ;;;;
 
@@ -358,7 +394,10 @@
 )
 
 (defn add-summary-visit [params]
-  (sql-add-error insert-visit-summary! (select-keys params [:pid,:vtype,:vtimestamp,:visitno,:ra,:note,:study,:cohort]))
+  (sql-add-error  insert-visit-summary!
+    (-> params 
+        (select-keys [:pid,:vtype,:vtimestamp,:visitno,:ra,:note,:study,:cohort])
+    ))
   ;TODO google cal
 )
 
@@ -380,7 +419,7 @@
   (sql-add-error cancel-visit!  (select-keys p [:vid]))
 )
 (defn resched-visit [p]
- (println p)
+ (println (str "TODO: RESCHEDULE" p))
 )
 
 
@@ -400,8 +439,26 @@
  )
 
 )
+
+(defn auth-post [url func]
+  "post url: slurp all params and exec func in a post and make sure we're authorized"
+  (POST url 
+        {body :body params :params }  
+        (-> (json-slurp body params) 
+             add-ra
+             func
+             json-response 
+             friend/authenticated) )
+)
+
 (defroutes routes
-  (GET "/" [] home-page)
+  ;(getauth "/loginas" loginas)
+  (GET "/" [] (friend/authenticated home-page ))
+  ;(GET "/" [] home-page )
+
+  (GET "/auth" req
+       (friend/authenticated (str "You have successfully authenticated as "
+                                  (friend/current-authentication))))
 
   ;; enroll newest
   (GET "/newest/enroll/:etype" [etype] 
@@ -438,20 +495,31 @@
 
   ;; INSERT 
   ; schedule
-  (POST "/person/:pid/visit_old" {body :body params :params }  (json-response (add-visit  (json-slurp body params))))
-  (POST "/person/:pid/visit" {body :body params :params }  (json-response (add-summary-visit  (json-slurp body params))))
+  ;(POST "/person/:pid/visit_old" {body :body params :params }  (json-response (add-visit  (json-slurp body params))))
+
+  (auth-post "/person/:pid/visit" add-summary-visit)
 
   ; check in  -- select tasks, score visit
-  (POST "/visit/:vid/checkin" {body :body params :params} (json-response (visit-checkin (json-slurp body params)) ))
+  (auth-post "/visit/:vid/checkin" visit-checking)
+  ;(POST "/visit/:vid/checkin" {body :body params :params} (json-response (visit-checkin (json-slurp body params)) ))
 
   ; EDIT
-  (POST "/visit/:vid/noshow"  {body :body params :params }  (json-response (noshow-visit  (json-slurp body params))))
-  (POST "/visit/:vid/cancel"  {body :body params :params }  (json-response (cancel-visit  (json-slurp body params))))
-  (POST "/visit/:vid/resched" {body :body params :params }  (json-response (resched-visit (json-slurp body params))))
+  (POST "/visit/:vid/noshow"  
+        {body :body params :params }  (json-response (noshow-visit  (json-slurp body params))))
+  (POST "/visit/:vid/cancel"  
+        {body :body params :params }  (json-response (cancel-visit  (json-slurp body params))))
+
+  (POST "/visit/:vid/resched" 
+        {body :body params :params }  
+        (-> (json-slurp body params) 
+             resched-visit 
+             json-response 
+             friend/authenticated) )
 
   ;; visit task
   ; edit
-  (POST "/task/:vtid" {body :body params :params }  (json-response (update-vtm (json-slurp body params))))
+  (POST "/task/:vtid" 
+        {body :body params :params }  (json-response (update-vtm (json-slurp body params))))
   ;(GET "task/:vtid" (println "GET TASK NOT DEFINED"))
   ; view
 
@@ -469,5 +537,21 @@
 
 (def app
   ;(let [handler (wrap-defaults #'routes my-site-defaults)]
-  (let [handler (wrap-defaults #'routes (assoc-in site-defaults [:security :anti-forgery] false) )]
-    (if (env :dev) (-> handler wrap-exceptions wrap-reload) handler)))
+  (let [
+      friendset {:allow-anon? true
+                     :unauthenticated-handler #(workflows/http-basic-deny "LNCDDB" %)
+                     :workflows [(workflows/http-basic
+                                  :credential-fn #(creds/bcrypt-credential-fn users %)
+                                  :realm "LNCDDB")]}
+      settings (assoc-in site-defaults [:security :anti-forgery] false) 
+      ;friended (friend/authenticated  #'routes friendset)
+      ;handler (wrap-defaults friended settings )
+      ;handler (wrap-defaults #'routes settings )
+      handler (-> #'routes 
+                  (friend/authenticate friendset)
+                  (wrap-defaults settings))
+  ] 
+    (if (env :dev) 
+      (-> handler wrap-exceptions wrap-reload)
+      handler)
+))

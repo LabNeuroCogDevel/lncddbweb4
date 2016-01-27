@@ -18,7 +18,8 @@
               ; helping functions -- can't do this or we recusive forver
               [ web4.helpers :as h ]
               [ web4.messages :as m ]
-              [ web4.checkin :as checkin ]
+; cannot include here, becomes circular
+;              [ web4.checkin :as checkin ]
               
     ))
 
@@ -67,12 +68,13 @@
 )
 
 
-(defn set-visit! [vid]
- (h/get-json (str "/visit/" vid) 
-    (fn [response]
-     (reset! checkin/checkin-data (first (:data response)))
-     (js/console.log "resonse" (first (:data response) ))
-)))
+; needs checkin to be included, but we need visit to be included in checkin
+;(defn set-visit! [vid]
+; (h/get-json (str "/visit/" vid) 
+;    (fn [response]
+;     (reset! checkin/checkin-data (first (:data response)))
+;     (js/console.log "set-visit! setting checkin-data -- resonse:" (first (:data response) ))
+;)))
 
 ;--- note
 (defn render-note [ni]

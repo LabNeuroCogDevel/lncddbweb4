@@ -13,12 +13,20 @@
 
               ; helping functions -- can't do this or we recusive forver
               [ web4.helpers :as h ]
-              ;[ web4.visits  :as v ] -- visit requires this, not the other way
+              [ web4.visits  :as v ] 
               
     ))
 
 ; -- single visit (checkin)
 (defonce checkin-data (atom {:vid 0 :add-id [] }))
+
+
+(defn set-visit-checkin! [vid]
+ (h/get-json (str "/visit/" vid) 
+    (fn [response]
+     (reset! checkin-data (first (:data response)))
+     (js/console.log "set-visit-checkin! resonse:" (first (:data response) ))
+)))
 
 ; ---- check in
 (defn checkin-visit! [doc]
@@ -30,8 +38,10 @@
   (h/post-json url doc (fn[r] 
     (js/console.log "submited checkin " (str doc) r )
     (h/gotohash (str "/search?selected-pid=" pid ))
+
     ; TODO: we go there but we don't update from before checkin
-    (v/set-person-visits! pid )
+    ; we cannot call v/ because v depeonds on checkout
+    ;(v/set-person-visits! pid )
    ) )
 ))
 ; fitlter tasks to those in study and vtype
