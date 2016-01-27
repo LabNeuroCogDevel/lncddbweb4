@@ -36,6 +36,11 @@
                              [credentials :as creds]) 
 				[hiccup.element :as e]
 
+            ;auth
+            [environ.core :refer [env]]
+            ;[clj-ldap-auth.ldap :as ldapauth]
+            [clj-ldap.client :as ldap]
+
 
            ))
 
@@ -65,23 +70,16 @@
 ; * list-tasks
 ; * list-newest 
 (defqueries "sql/study.sql" {:connection db-spec})
-
-;; http://blog.00null.net/clojure-yesql-and-postgesql-arrays/
-; posgresql arrays 
-;
-; (defn get-snippet [snippet-id]
-;   (jdbc/with-db-transaction [conn db-spec]
-;       (let [row (first (-get-snippet conn snippet-id))]
-;             (update-in row [:tags] (fn [ts] (vec (.getArray ts)))))))
-
 ;;;;
 
 
 
 
 ;;;; AUTHENTICATION
+(def ldap-server (ldap/connect {:host "acct.upmchs.net"}))
+
 (def users {"RA" {:username "RA" :password (creds/hash-bcrypt "RA") :role #{::RA}}
-            "test" {:username "test" :password (creds/hash-bcrypt "test") :roles #{::admin}}})
+            "localadmin" {:username "localadmin" :password (creds/hash-bcrypt "local!123") :roles #{::admin}}})
 
 (defn loginas [req]
  [:html
@@ -90,8 +88,15 @@
  ]
 )
 
-(defn getauth [url fun] 
-  (GET url [req] (friend/authenticated fun)))
+
+; use users login or ldap
+(defn isauth? [in]
+ (when (or
+   (creds/bcrypt-credential-fn users in)  
+   (ldap/bind? ldap-server (str "1UPMC-ACCT\\" (:username in)) (:password in)) 
+  )
+   {:username (:username in) :role #{::RA}})
+)
 
 (defn auth-user [user]
   (println (str "USER:" user))
@@ -452,14 +457,16 @@
 )
 
 (defroutes routes
-  ;(getauth "/loginas" loginas)
   (GET "/" [] (friend/authenticated home-page ))
   ;(GET "/" [] home-page )
 
-  (GET "/auth" req
-       (friend/authenticated (str "You have successfully authenticated as "
-                                  (friend/current-authentication))))
-
+  (GET "/whoami" req
+   (friend/authenticated 
+    (str "You have successfully authenticated as "
+         (friend/current-authentication) 
+         "\n you are authorised? " )))
+         ;(isauth? "foranw" "Wh!sl00king") )))
+  
   ;; enroll newest
   (GET "/newest/enroll/:etype" [etype] 
         (json-response(sql-add-error list-newest {:etype etype})))
@@ -493,33 +500,36 @@
   (GET "/visit/:vid" [vid] (json-response (sql-add-error get-idv-visit {:vid vid}) ))
   (GET "/test/:pid/:vtimestamp" {params :params} (json-response (get-test-age params) ))
 
-  ;; INSERT 
-  ; schedule
-  ;(POST "/person/:pid/visit_old" {body :body params :params }  (json-response (add-visit  (json-slurp body params))))
-
+  ;; INSERT/POST
   (auth-post "/person/:pid/visit" add-summary-visit)
 
   ; check in  -- select tasks, score visit
-  (auth-post "/visit/:vid/checkin" visit-checking)
-  ;(POST "/visit/:vid/checkin" {body :body params :params} (json-response (visit-checkin (json-slurp body params)) ))
+  (auth-post "/visit/:vid/checkin" visit-checkin)
 
   ; EDIT
-  (POST "/visit/:vid/noshow"  
-        {body :body params :params }  (json-response (noshow-visit  (json-slurp body params))))
-  (POST "/visit/:vid/cancel"  
-        {body :body params :params }  (json-response (cancel-visit  (json-slurp body params))))
+  (auth-post "/visit/:vid/noshow"  noshow-visit )
+  (auth-post "/visit/:vid/cancel"  cancel-visit )
+  (auth-post "/visit/:vid/resched" resched-visit )
 
-  (POST "/visit/:vid/resched" 
-        {body :body params :params }  
-        (-> (json-slurp body params) 
-             resched-visit 
-             json-response 
-             friend/authenticated) )
+  ;; w/o auth-post
+
+  ; schedule
+  ;(POST "/person/:pid/visit_old" {body :body params :params }  (json-response (add-visit  (json-slurp body params))))
+  ;(POST "/visit/:vid/resched" 
+  ;      {body :body params :params }  
+  ;      (-> (json-slurp body params) 
+  ;           resched-visit 
+  ;           json-response 
+  ;           friend/authenticated) )
+  ;
+  ;(POST "/visit/:vid/noshow" {body :body params :params }  (json-response (noshow-visit  (json-slurp body params))))
+  ;(POST "/visit/:vid/cancel" {body :body params :params }  (json-response (cancel-visit  (json-slurp body params))))
 
   ;; visit task
   ; edit
-  (POST "/task/:vtid" 
-        {body :body params :params }  (json-response (update-vtm (json-slurp body params))))
+  (auth-post "/task/:vtid" update-vtm)
+  ;(POST "/task/:vtid" 
+  ;      {body :body params :params }  (json-response (update-vtm (json-slurp body params))))
   ;(GET "task/:vtid" (println "GET TASK NOT DEFINED"))
   ; view
 
@@ -541,7 +551,7 @@
       friendset {:allow-anon? true
                      :unauthenticated-handler #(workflows/http-basic-deny "LNCDDB" %)
                      :workflows [(workflows/http-basic
-                                  :credential-fn #(creds/bcrypt-credential-fn users %)
+                                  :credential-fn #(isauth? %)
                                   :realm "LNCDDB")]}
       settings (assoc-in site-defaults [:security :anti-forgery] false) 
       ;friended (friend/authenticated  #'routes friendset)

@@ -64,6 +64,10 @@
                 
                  ; google cal
                  [google-apps-clj "0.2.1"]
+
+                 ;ldap auth
+                 [clj-ldap-auth "0.1.1"]
+                 [org.clojars.pntblnk/clj-ldap "0.0.9"]
                 ]
 
   :plugins [[lein-environ "1.0.1"]
@@ -123,7 +127,10 @@
                               :css-dirs ["resources/public/css"]
                               :ring-handler web4.handler/app}
 
-                   :env {:dev true}
+                   :env {:dev true
+                   :auth.hostname "acct.upmchs.net"
+                   :auth.basedn "dc=upmchs,dc=net"
+                   :auth.port 389}
 
                    :cljsbuild {:builds {:app {:source-paths ["env/dev/cljs"]
                                               :compiler {:main "web4.dev"
