@@ -29,6 +29,7 @@
 
             ; google cal
             ;[google-apps-clj.core :as gcal]
+            [google-apps-clj.google-calendar :as gcal]
 
             ; authetication
             [cemerick.friend :as friend]
@@ -465,7 +466,6 @@
     (str "You have successfully authenticated as "
          (friend/current-authentication) 
          "\n you are authorised? " )))
-         ;(isauth? "foranw" "Wh!sl00king") )))
   
   ;; enroll newest
   (GET "/newest/enroll/:etype" [etype] 

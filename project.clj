@@ -20,34 +20,34 @@
   :dependencies [[org.clojure/clojure "1.7.0"]
                  [ring-server "0.4.0"]
                  [reagent "0.5.1"]
-                 [reagent-utils "0.1.5"]
+                 [reagent-utils "0.1.7"]
                  [reagent-forms "0.5.13"]
                  [ring "1.4.0"]
                  [ring/ring-defaults "0.1.5"]
-                 [prone "0.8.2"]
+                 [prone "1.0.1"]
                  [compojure "1.4.0"]
                  [hiccup "1.0.5"]
-                 [environ "1.0.1"]
-                 [org.clojure/clojurescript "1.7.122" :scope "provided"]
+                 [environ "1.0.2"]
+                 [org.clojure/clojurescript "1.7.228" ] ; :scope "provided"]
                  [secretary "1.2.3"]
                  
                  
                  ; get data
-                 [org.clojure/core.async "0.1.346.0-17112a-alpha"]
-                 [cljs-http "0.1.37"]
-                 [cljs-ajax "0.5.0"]
+                 [org.clojure/core.async "0.2.374"]
+                 [cljs-http "0.1.39"]
+                 [cljs-ajax "0.5.3"]
                  [cheshire  "5.5.0"]
                 
                  ; deal with database
-                 [yesql "0.5.1"]
-                 [mysql/mysql-connector-java "5.1.37"]
-                 [org.postgresql/postgresql "9.4-1201-jdbc41"]
+                 [yesql "0.5.2"]
+                 [mysql/mysql-connector-java "5.1.38"]
+                 [org.postgresql/postgresql "9.4.1207"]
 
                  ; authentication
                  [com.cemerick/friend "0.2.1" :exclusions [org.clojure/core.cache] ]
 
                  ; pretty dates in js
-                 [com.andrewmcveigh/cljs-time "0.3.14"]
+                 [com.andrewmcveigh/cljs-time "0.4.0"]
                  ; and on the server
                  [clj-time "0.11.0"]
                  ; date picker
@@ -60,10 +60,10 @@
                  [rm-hull/inkspot "0.0.1-SNAPSHOT"]
 
                  ;debug html printing
-                 [json-html "0.3.6"]
+                 [json-html "0.3.8"]
                 
                  ; google cal
-                 [google-apps-clj "0.2.1"]
+                 [google-apps-clj "0.3.3"]
 
                  ;ldap auth
                  [clj-ldap-auth "0.1.1"]
@@ -71,9 +71,9 @@
                 ]
 
   :plugins [[lein-environ "1.0.1"]
-            [lein-asset-minifier "0.2.2"]
+            ;[lein-asset-minifier "0.2.4"]
             ; check for new fun things
-            [lein-ancient "0.6.7"]
+            [lein-ancient "0.6.7" :exclusions [org.clojure/tools.reader org.clojure/clojure] ]
             ]
 
   :ring {:handler web4.handler/app
@@ -91,9 +91,9 @@
 
   :source-paths ["src/clj" "src/cljc"]
 
-  :minify-assets
-  {:assets
-    {"resources/public/css/site.min.css" "resources/public/css/site.css"}}
+  ;:minify-assets
+  ;{:assets
+  ;  {"resources/public/css/site.min.css" "resources/public/css/site.css"}}
 
   :cljsbuild {:builds {:app {:source-paths ["src/cljs" "src/cljc"]
                              :compiler {:output-to     "resources/public/js/app.js"
@@ -106,13 +106,19 @@
 
                    :dependencies [[ring/ring-mock "0.3.0"]
                                   [ring/ring-devel "1.4.0"]
-                                  [lein-figwheel "0.4.0"]
-                                  [org.clojure/tools.nrepl "0.2.11"]
-                                  [com.cemerick/piggieback "0.1.5"]
-                                  [pjstadig/humane-test-output "0.7.0"]]
+                                  [lein-figwheel "0.5.0-6"]
+
+                                  ; issue with stringreader
+                                  ; https://github.com/clojure-emacs/refactor-nrepl/issues/53
+                                  [org.clojure/tools.nrepl "0.2.12" ]
+                                  [com.cemerick/piggieback "0.2.1"]
+                                  [pjstadig/humane-test-output "0.7.1"]]
 
                    :source-paths ["env/dev/clj"]
-                   :plugins [[lein-figwheel "0.4.0"]
+                   :plugins [
+                             [refactor-nrepl "1.1.0"]
+                             [cider/cider-nrepl "0.10.2" :exclusions [org.clojure/clojure] ]
+                             [lein-figwheel "0.5.0-6"]
                              [lein-cljsbuild "1.1.0"]]
 
                    :injections [(require 'pjstadig.humane-test-output)
@@ -127,10 +133,7 @@
                               :css-dirs ["resources/public/css"]
                               :ring-handler web4.handler/app}
 
-                   :env {:dev true
-                   :auth.hostname "acct.upmchs.net"
-                   :auth.basedn "dc=upmchs,dc=net"
-                   :auth.port 389}
+                   :env {:dev true }
 
                    :cljsbuild {:builds {:app {:source-paths ["env/dev/cljs"]
                                               :compiler {:main "web4.dev"
@@ -140,7 +143,7 @@
                                         
 }}
 
-             :uberjar {:hooks [leiningen.cljsbuild minify-assets.plugin/hooks]
+             :uberjar {:hooks [leiningen.cljsbuild ];minify-assets.plugin/hooks]
                        :env {:production true}
                        :aot :all
                        :omit-source true
