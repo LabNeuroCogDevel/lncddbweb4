@@ -62,8 +62,10 @@
                  ;debug html printing
                  [json-html "0.3.8"]
                 
-                 ; google cal
-                 [google-apps-clj "0.3.3"]
+                 ; google cal -- THIS IS LOCAL VERSION WITH DELETE
+                 [google-apps-clj "0.3.3.1"]
+                 ; not in clojars
+                 ;[owainlewis/gcal "0.1.0-SNAPSHOT"]
 
                  ;ldap auth
                  [clj-ldap-auth "0.1.1"]

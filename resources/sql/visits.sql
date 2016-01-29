@@ -14,6 +14,9 @@ select
  -- group by vid
  -- round(v.age::numeric,1) as v.age, 
 
+-- name: get-visit-by-id
+select * from visits_view where vid=:vid::integer;
+
 -- name: list-notes-by-vid 
 select n.*,dc.droplevel from note n 
   join visit_note vn on vn.nid=n.nid  and editof is null
@@ -93,7 +96,7 @@ insert into visit_drop (vid,did) values (:vid,:did)
 -- delete a visit -- only works if we have not enrolled, only have status of sched, and have no tasks
 delete from visit where vid = :vid::integer
 
--- name: insert-visit-summary!
+-- name: insert-visit-summary<!
 -- using insert trigger on visit_summary view to insert everything at once
 insert into visit_summary (pid,vtype,vtimestamp,visitno,ra,note,study,cohort) 
     values (:pid::integer,:vtype,:vtimestamp::timestamp,:visitno::integer,:ra,:note,:study,:cohort);
@@ -122,6 +125,9 @@ select vt.* from visit_task vt where vid = :vid
 insert into visit_checkin_view (vid,ra,vscore,note,ids,tasks) values
  (:vid::integer,:ra::text,:vscore::numeric(3),:note::text, :ids::jsonb, :tasks::jsonb);
 
+--name: update-googleid<!
+-- update :vid to have :googleuir
+update visit set googleuri = :googleuri where vid = :vid::integer;
 
 --name: update-vt-measure!
 -- update meassures in visit task

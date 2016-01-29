@@ -1,3 +1,7 @@
+--name: get-person-by-id
+-- get a single person by id
+select * from person where pid = :pid::integer limit 1
+
 -- name: list-people-by-name
 -- list people given a name
 select 

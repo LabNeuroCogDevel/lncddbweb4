@@ -45,6 +45,10 @@
 
            ))
 
+;; google calendar
+; NOTE: this will expire occasionally!
+(def google-ctx (-> "resources/google-creds.edn" slurp clojure.edn/read-string))
+
 ;;;; DB
 (def db-spec {:classname "org.postgresql.Driver"
  :subprotocol "postgresql"
@@ -182,6 +186,7 @@
 ) 
 ; wrap in data key of map if not already a map
 (defn parse-sql-return [r]
+ ; eg. class java.lang.Integer for ! (but not <!)
  (println (str "returned from sql: '" (type r)"' " r ))
  ;(if (nil? (re-matches #"^class.*|.*Map.*" (str (type r))))
  (if (nil? (re-matches #".*Map.*" (str (type r))))
@@ -194,7 +199,7 @@
  "run yesql function 'sqlf' with 'params', return hasmap that has error
   null if no error, error: str exception if there is"
  [sqlf params]
- (println "* running sql with params: " params)
+ (println "*sql-add-error: running sql with params: " params)
  (try 
     (conj {:error nil} (doall (parse-sql-return (sqlf params )) ))
     (catch Exception e 
@@ -298,8 +303,8 @@
 )
 
 (defn visit-checkin [params] 
- (let [doc (merge {:ra "webfrontendRA"} 
-                  (select-keys params [:ra :vid :vscore :add-ids :note :tasks]))
+ (let [doc (merge {:ra (:username (friend/current-authentication))} 
+                  (select-keys params [:vid :vscore :add-ids :note :tasks]))
       submit (mapkeys-tojson doc [:add-ids :tasks]) ]
  ;
  ;{:vstatus sched, :vscore 5, :add-ids [{:etype LunaID, :id 11469}], :visitno 1, :fname Bart, :age 6.05886379192334, :sex M, :vid 3893, :ids [{:id nil, :etype nil}], :hand R, :studys [{:study MEGEmo, :cohort Control}], :lname Simpson, :note this is not a real visit, :tasks [PVLQuestionnaire fMRIRestingState SpatialWorkingMem ScanSpit], :dob 2010-01-01T05:00:00Z, :pid 1182, :add-task , :notes [TEST Test CogR01 Testing ringreward scan 1], :vtype Scan, :googleuri nil, :vtimestamp 2016-01-23T18:00:00Z}
@@ -344,68 +349,77 @@
       [:h3 "ClojureScript has not been compiled!"]
       (include-js "js/app.js")]]]))
 
-;(defn add-visit [urlp body]
-;  (println (str urlp body))
-;  
-;  ; TODO: fix time conversion
-;  (def params 
-;    (update 
-;     (merge urlp (json/parse-string body true))
-;     :vtimestamp
-;     tc/to-date-time
-;    )
-;  )
-;  (println (str "timestamp:"  "'"(:vtimestamp params)"' from "  body ))
+(defn- add-dur [onset dur]
+ ;"add duration to a time (as string like 20160101T13000). duration is in hours"
+ "add duration to a time. duration is hours (possibly decimal) "
+ (println (str dur (class dur)))
+ (let [
+   ;onset  (tf/parse (tf/formatter "yyyyMMdd'T'HHmmss") strtime)
+   durmin (* 60 (mod dur 1))
+   durhr  (int (Math/floor dur))
+ ]
+ (-> onset 
+    (t/plus (t/hours durhr) )
+    (t/plus (t/minutes durmin) )
+ )
+))
 
-; OLD
-(defn add-visit [params]
-
-  ;(def params 
-  ;  (update paramsinin
-  ;   :vtimestamp #(tf/parse (tf/formatter "yyyyMMddThhmmss"
-  ;  )
-  ;)
-  ;(println (str "timestamp:"  "'"(:vtimestamp params)"' from "  in ))
+(defn add-calendar-visit [vid ra dur]
+ "add a visit to the calendar
+ need: study vtype vtimestamp sex age fname lname note ra"
+  (let [
+       v (first (get-visit-by-id {:vid vid}))
+      sd (first (:studies v))
+      ; prepare cal info
+      title (format "%s %s - %.1f yo%s (%s%s)" 
+                   (:study sd) (:vtype v)
+                   (float (or (:age v) 0))
+                   (:sex v) 
+                   (-> v :fname (subs 0 1) clojure.string/upper-case)
+                   (-> v :lname (subs 0 1) clojure.string/upper-case) )
+      curtimestr (tf/unparse 
+                      (tf/formatter "yyyy-MM-dd HH:mm") 
+                      (t/from-time-zone (t/now) (t/time-zone-for-offset 5)))
+      desc (format "%s\nscheduled by %s on %s"
+                   (clojure.string/join "\t" (:notes v))
+                   ra
+                   curtimestr)
   
-  ;TODO: POST TO GOOGLE
-  ;(gcal/add-calendar-event )
-  ;(def params
-  ;  (reduce (fn [x y] (update-in x [y]  #(Integer. %) )) params [:pid] )
-  ;)
+      t    (tc/from-sql-time (:vtimestamp v))
+      gevent (gcal/add-calendar-time-event 
+                 google-ctx title desc 
+                 ""  ;location
+                 (tf/unparse (tf/formatter "yyyy-MM-dd'T'HH:mm:ss") t )
+                 (tf/unparse (tf/formatter "yyyy-MM-dd'T'HH:mm:ss") 
+                    (add-dur t (read-string dur) ))
+                 []) ; people invited
+ ]
 
-  (def vid (:vid (insert-newvisit<! (select-keys params [:pid :vtype :visitno :visitno :vtimestamp  ]) ) ))
-  (def nid (:nid (insert-note-now<! (select-keys params [:pid :ra :note] )) ))
+ (println (str "schedualing visit: " v "\n\t" (:vid v) " " (get gevent "id")))
+ (update-googleid<! {:vid (:vid v) :googleuri (get gevent "id")})
+))
 
-  (println (str "added vid: " vid))
-  (println (str "added note: " nid))
-  (when (and vid nid)
-  (do 
-     ;insert into visit_action (vid,action,ra,vatimestamp) values (:vid,:action::status,:ra,:vatimestamp)
-     (insert-visitaction-now! {:vid vid :action "sched"  :ra (:ra params )})
-
-     ;insert into visit_note (vid,nid) values (:vid,:nid)
-     (insert-visitnote<! {:vid vid :nid nid})
-
-     ;insert into visit_study (vid,study,cohort) values (:vid,:study,:cohort)
-     (insert-visitstudy! (merge {:vid vid} (select-keys params [:study :cohort])))
-  ))
-  ; -- name: insert-newvisit!
-  ; -- inserts a visit
-  ; insert into visit (pid,age,vtype,vtimestamp,vstatus) values (:pid,:age,:vtype,:vdate,'sched')
-  ; -- opts: ('sched','complete','checkedin','cancelled','noshow','unkown','other')
-
-  ;TODO: check and send error?
-
-  {:vid vid :nid nid}
-)
 
 (defn add-summary-visit [params]
-  (sql-add-error  insert-visit-summary!
-    (-> params 
-        (select-keys [:pid,:vtype,:vtimestamp,:visitno,:ra,:note,:study,:cohort])
-    ))
-  ;TODO google cal
-)
+" add visit, visit action, visit note, visit study with sql trigger on view.
+  need pid study vtype vtimestamp visitno note study cohort,ra and dur.
+  N.B. ra likely added by auth-post"
+(let [
+   v (sql-add-error  
+        insert-visit-summary<!
+        (select-keys params [:pid :vtype :vtimestamp :visitno :ra :note :study :cohort])
+     )
+   ]
+
+   ; add to google cal when we've had no error inserting visit
+   (when (= (:error v) nil)
+     (println "running: (add-calendar-visit " (:vid v) (:ra params) (:dur params) )
+     (let [ gevent (add-calendar-visit (:vid v) (:ra params) (:dur params) ) ] 
+      (assoc v :googleuri (gevent :googleuri))
+   ))
+
+   v
+))
 
 (defn get-test-age [p]
    "testing why select insert does not add correct age"
@@ -421,9 +435,17 @@
 
 )
 (defn cancel-visit [p]
-  (println (str "cancel: " p))
+ (println (str "cancel: " p))
+ (let [
+       v (first (get-visit-by-id (select-keys p [:vid])))
+       gu (:googleurl v)
+ ]
+  (when (not(nil? gu))
+   (gcal/delete-calendar-event google-ctx gu)
+  )
   (sql-add-error cancel-visit!  (select-keys p [:vid]))
-)
+))
+
 (defn resched-visit [p]
  (println (str "TODO: RESCHEDULE" p))
 )
@@ -464,7 +486,7 @@
   (GET "/whoami" req
    (friend/authenticated 
     (str "You have successfully authenticated as "
-         (friend/current-authentication) 
+         (:username (friend/current-authentication))
          "\n you are authorised? " )))
   
   ;; enroll newest
