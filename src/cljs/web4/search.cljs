@@ -110,9 +110,11 @@
                              :id :study :input-placeholder "STUDY"}] ]
     
     [:div.col-xs-2 [:select.form-control {:field :list :id :hand} 
-         (for [hand ["" "R" "L" "U"]] [:option {:key hand} hand] )
+         ;[:option {:key ""} "HDN"]
+         (for [hand ["" "R" "L" "U" "A"]] [:option {:key hand} hand] )
     ]]
     [:div.col-xs-2 [:select.form-control {:field :list :id :sex} 
+         ;[:option {:key ""} "SEX"]
          (for [sex ["" "M" "F" "U"]] [:option {:key sex} sex] )
     ]]
    ]
@@ -179,13 +181,16 @@
 )
 
 (defn search! [params results routefn]
-  (js/console.log "search pep with: " (str params) )
-  (h/get-json (ajax.core/uri-with-params "/people" params) 
+ ;(let [url (ajax.core/uri-with-params "/people" params) ] ;broke with update?
+ (let [url (str "/people?" (ajax.core/params-to-str params)) ]
+  (js/console.log "search pep with: " (str url) 
+                  "\nurl: " url )
+  (h/get-json url
     (fn[r] (when (not(nil? (:data r))) 
             (reset! results (:data r)
             (update-search-url-rt! params routefn)
  ))))
-)
+))
 
 
 (defn peprow [selectedatom si]
