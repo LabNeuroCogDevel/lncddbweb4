@@ -29,6 +29,25 @@ h3 {
 }
 */
 
+
+/* */
+.contact-contact { padding: 0.5em;}
+.contact-note {margin-left: 1em; padding: 0.2em;}
+
+  /* only show note maker when hovering over contact  */
+.contact-note > form {display: none}
+.contact-contact:hover > .contact-note > form {display: block}
+
+.contact-toggle {float:right}
+
+/* */
+
+.inline {display: inline-block}
+.person-info {
+ padding-right: 1em;
+}
+
+
 a {
   text-decoration: none;
   color: #09f;
@@ -79,19 +98,13 @@ tr {
 }
 
 .Scan {
- border-left: 4px solid #4f4;
- padding-left: 2px;
- margin-bottom: 4px;
+ border-left: 4px solid #4f4 !important;
 }
 .Behavioral {
- border-left: 4px solid #44f;
- padding-left: 2px;
- margin-bottom: 4px;
+ border-left: 4px solid #44f !important;
 }
 .MEG {
- border-left: 4px solid #fa4;
- padding-left: 2px;
- margin-bottom: 4px;
+ border-left: 4px solid #fa4 !important;
 }
 
 .visittask {
@@ -106,6 +119,7 @@ tr {
 li.visititem {
  display: block;
  padding: 1em;
+ margin-bottom: 1em;
 }
 
 /* ids of any time aren't that important */
@@ -115,6 +129,74 @@ li.visititem {
  display: inline;
  padding-left: 0.5em;
 }
+
+
+h2.ids { 
+ max-width: 200px;
+ display:inline-block;
+ padding-right: 2em;
+}
+
+h3.name {
+ display: inline-block;
+}
+
+hr.boldhr {
+ padding: 1px;
+ width: 100%;
+ background: #aaa;
+ margin-top: .5em;
+ margin-bottom: .5em;
+}
+
+.idtype {
+padding:.1em
+}
+
+.idtype .luna {
+}
+.notluna {
+ color: #333;
+ font-size: small;
+}
+
+.maxdrop {
+ border-radius: 1em 1em 0 0;
+ font-size: large;
+ background-color: red;
+ color: white;
+ margin: .4em;
+ padding: .4em;
+ border: solid black 1px;
+}
+
+.drop-visit {
+ background-color: pink;
+}
+
+.visit-form-toggle  {
+ margin: 1em;
+}
+
+
+ul.list-selection {
+ list-style-type: none;
+} 
+ul.list-selection > li {
+ margin-left: -20px !important;
+ width: 30px;
+ overflow: hidden;
+ display: inline-block;
+}
+
+
+/*ul.list-selection > li:first-child, */
+ul.list-selection:hover > li {
+ margin-left: .1em !important;
+ width: auto !important;
+}
+
+
 
 .visitnotes {
  display: block;

@@ -88,10 +88,8 @@
 (def search-form 
  [:div
    [:div.row
-    [:div.col-xs-2 [:input  {:field :text :id :eid       :placeholder "10931"}]]
-    [:div.col-xs-4 [:input  {:field :text :id :fullname :placeholder "Bart Simpson"}]]
-    [:div.col-xs-1 [:input  {:size 2 :field :numeric :id :minage }]]
-    [:div.col-xs-1 [:input  {:size 2 :field :numeric :id :maxage }]]
+    [:div.col-xs-3 [:input.form-control  {:field :text :id :eid       :placeholder "10931"}]]
+    [:div.col-xs-5 [:input.form-control  {:field :text :id :fullname :placeholder "Bart Simpson"}]]
    ]
    [:div.row
     ;[:div.col-xs-4 [:select.form-control {:field :list :id :study} 
@@ -109,14 +107,16 @@
                              :highlight-class "highlighted"
                              :id :study :input-placeholder "STUDY"}] ]
     
-    [:div.col-xs-2 [:select.form-control {:field :list :id :hand} 
-         ;[:option {:key ""} "HDN"]
-         (for [hand ["" "R" "L" "U" "A"]] [:option {:key hand} hand] )
-    ]]
+    ;[:div.col-xs-2 [:select.form-control {:field :list :id :hand} 
+    ;     ;[:option {:key ""} "HDN"]
+    ;     (for [hand ["" "R" "L" "U" "A"]] [:option {:key hand} hand] )
+    ;]]
     [:div.col-xs-2 [:select.form-control {:field :list :id :sex} 
          ;[:option {:key ""} "SEX"]
          (for [sex ["" "M" "F" "U"]] [:option {:key sex} sex] )
     ]]
+    [:div.col-xs-2 [:input.form-control  {:size 2 :field :numeric :id :minage }]]
+    [:div.col-xs-2 [:input.form-control  {:size 2 :field :numeric :id :maxage }]]
    ]
  ]
 )
@@ -201,7 +201,7 @@
                   (when isselected " search-selected"))
          }
 
-   [:td (doseq [id (:ids si)]  ^{:key (str si  id)}[:div {:class "search-id"} id ] )]
+   [:td (for [id (:ids si)]  ^{:key (str si  id)}[:div {:class "search-id"} id ] )]
    [:td [:div (:fname si) " " (:lname si) ]
        [:div {:class "dob"} (h/notime-datestr (:dob si)) ]
    ]
@@ -269,7 +269,7 @@
 
     [:div 
      [:table  {:class "table table-striped table-condensed table-hover"} 
-       [:thead [:tr (doseq [x  ["ids" "name" "info" "last visit" "nvisits"]] ^{:key (str "header" x) }[:th x]) ] ]
+       [:thead [:tr (for [x  ["ids" "name" "info" "last visit" "nvisits"]] ^{:key (str "header" x) }[:th x]) ] ]
        [:tbody
        (doall (map #(peprow selected %)  @peps))
       ]] 
@@ -282,14 +282,23 @@
   ]
 )))
 
-
+(defn clicked [e n doc]
+  (js/console.log e)
+  (js/console.log n)
+  
+  (js/console.log (str @doc)
+  )
+)
 (defn search-page [params]
  [:div 
   [m/msg-view-comp]
   [search-comp-new params]
-  [v/person-comp]
+  [:div.col-md-5
+   [v/person-comp]
+  ]
  ]
 )
+
 
 (secretary/defroute searchonlyrt "/search" [query-params]
  (h/get-autocomplete-lists! )

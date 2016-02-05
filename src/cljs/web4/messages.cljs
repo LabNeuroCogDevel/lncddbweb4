@@ -44,7 +44,7 @@
   (map-indexed (fn[n msg] 
      ^{:key (str (name msgtype) n)}
      [:div 
-      {:class (str "msg " (name msgtype))
+      {:class (str "alert alert-danger msg " (name msgtype))
        :on-click #(rm-error msgtype n) }
       msg
      ]) 

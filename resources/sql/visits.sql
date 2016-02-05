@@ -19,7 +19,7 @@ select * from visits_view where vid=:vid::integer;
 
 -- name: list-notes-by-vid 
 select n.*,dc.droplevel from note n 
-  join visit_note vn on vn.nid=n.nid  and editof is null
+  join visit_note vn on vn.nid=n.nid  
   left join visit_drop vd on vd.vid=vn.vid
   left join dropped d on d.did=vd.did
   left join dropcode dc on dc.dropcode = d.dropcode

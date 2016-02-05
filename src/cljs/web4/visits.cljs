@@ -50,15 +50,13 @@
             ;(js/console.log "response:" (type response) (str response) )
             (swap! person-state assoc :pid pid)
             (swap! person-state assoc :visits response)
-
             ; get persons info
-            (GET (ajax.core/uri-with-params "/people" 
-                   {:pid pid :study "" :eid "" :hand "" 
-                    :fullname "" :sex "" :mincount 0 :minage 0 :maxage 200 :offset 0}) 
+            (GET (str "/people?pid=" pid)
                  :keywords? true 
                  :response-format :json 
                  :handler (fn [response] 
-                      (js/console.log "setting visit person response:" (type response) (str response) )
+                      (js/console.log "setting visit person response:"
+                                       (type response) (str response) )
                       (swap! person-state assoc :info (first (:data response )))
                  )
              )
@@ -241,7 +239,13 @@
                 :note ""} )]
   (fn []
    [:div.visit-form
-    [:div.toggle [:a {:on-click #(do (js/console.log @showadd) (swap! showadd not)) } "add visit" ] ]
+
+    [:div.visit-form-toggle 
+      [:button.form-control.btn-info
+        {:on-click #(do (js/console.log @showadd) (swap! showadd not)) } 
+          "toggle add visit"
+    ] ]
+
     (when  (and have-person @showadd)
      [:div
        [bind-fields visit-form-date doc]
@@ -272,10 +276,27 @@
 
 
 (defn visit-idv-comp [visit]
-   
-   (def scorecolor (h/colorspctm (visit :vscore)))
+ (let [
+    ; border to indicate score
+    scorecolor (if (:vscore visit) (h/colorspctm (visit :vscore)) "#fff") 
+    drops (->> visit 
+           :notes 
+           ; false if any droplevel has text
+           (map #(-> % :droplevel nil?))
+           distinct
+           sort  ; (false true) 
+           first   
+           (= false) ; if there is a false, we dropped
+         )
+
+    dropclass  (if drops "drop-visit" "")
+   ]
    ;(js/console.log "score: " scorecolor (visit :vscore))
-   ^{:key (:vid visit)}[:li {:id (visit :vid) :class (str (visit :vstatus) " visititem " (visit :vtype) ) }
+   ^{:key (:vid visit)}
+   [:li
+      {:id (visit :vid) 
+       :class (str (visit :vstatus) " visititem " (visit :vtype) " " dropclass ) 
+      }
 
     ; DATE and AGE
     [:div {:class "visitdate"} 
@@ -288,53 +309,349 @@
     ; INFO (type/study)
     [:div {:class "visitinfo"  :style { :borderColor scorecolor}  } 
         (visit :vtype)" - " (visit :study)  " - "  (visit :vscore) ]
-      ; TASKS
-      [:div {:class "visittasks" }  
-          (map visit-task-idv-comp (visit :tasks)) ]
-      ; NOTES
-      [:div {:class "visitnotes"}
-         (map #(render-note % ) (visit :notes) )
-      ]
 
-      ; STRUCT
-      ;[:div (str visit) ]
+    ; TASKS
+    [:div {:class "visittasks" }  
+        (map visit-task-idv-comp (visit :tasks)) ]
+    ; NOTES
+    [:div {:class "visitnotes"}
+       (map #(render-note % ) (visit :notes) )
+    ]
+
+    ; STRUCT
+    ;[:div (str visit) ]
     ;(when (not (:collapsed @person-state-display))
     ;)
    ]
-)
+))
 
 ;; -------
 ;; Person/Visit
 
+; parse IDS
+(defn emp-luna [ids]
+ "lazy/hack/cludge to emphasize luna ids"
+ (for [id (sort #(< (count %1) (count %2)) ids) ]
+  (let [isluna (if (= 5 (count id)) "luna" "notluna")]
+  ^{:key (str "id" id)}[:span.idtype {:class isluna} (str id " ")]
+ ))
+)
+
 ; person info
 (defn person-info-comp []
- (def info (:info @person-state))
- (def dropinfo (get-in @person-state [:info :maxdrop]))
+ (let [
+    info (:info @person-state)
+    maxdrop (get-in @person-state [:info :maxdrop])
+    pid  (:pid @person-state) 
+ ]
 
  [:div {:class "person-info"}
   ;[:div "PERSONSTATE:" (str @person-state) ]
-  [:h2 (clojure.string/join " " (:ids info)) [:span.id (:pid @person-state) ] ]
-  [:h3 (str (:fname info) " " (:lname info)) ] 
-  (when (not (nil? dropinfo)) [:div "Drop: " (str dropinfo) ])
- ;[:div
- ;  (edn->hiccup (:info @person-state))
- ;]
 
-])
+  (when (not (nil? maxdrop)) ^{:key "maxdrop"}[:h2.maxdrop "MaxDrop: " (str maxdrop) ])
+  ; ID and drop
+  [:h2.ids 
+     (emp-luna (:ids info)) 
+     (when (> pid 0) [:span.id pid])
+  ]
+
+  ; NAME
+  [:h3.name (str (:fname info) " " (:lname info)) ] 
+  [:br]
+
+  ;[:div (edn->hiccup (:info @person-state)) ]
+
+]))
+
+(defn listselect [all k seldoc]
+ [:ul.list-selection 
+ 
+ [:li [:a 
+    { :class "btn-sm btn-default toggleall"
+     :on-click (if (empty? (k @seldoc))
+      #(swap! seldoc assoc k all)
+      #(swap! seldoc assoc k []))} "x"] ]
+
+ (doall (for
+  [a all]
+  (let [exists (some #{a} (k @seldoc))]
+   ^{:key (str "sel" (name k) a)}
+   [:li [:a.btn 
+     {:class (str "btn-sm " 
+            (if exists "btn-primary" "btn-default" )
+            " " a )
+      :on-click #(if exists 
+           (swap! seldoc assoc k (filter (fn[x] (not(= x a))) (k @seldoc)) )
+           (swap! seldoc assoc k (conj (k @seldoc) a) )
+           )
+     } 
+     a
+   ]])
+  ))
+ ]
+)
+
+(defn visits-comp []
+ (let [
+  visits (:visits @person-state)
+  ;allst  (->> visits (map :study) distinct sort)
+  ;allvt  (->> visits (map :vtype) distinct sort)
+  allst  (sort (distinct (map :study visits)))
+  allvt  (sort (distinct (map :vtype visits)))
+  sels   (atom {:studies allst :vtypes allvt })
+ ] (fn []
+  [:div {:class "visit-cntnr"} 
+    
+    ; ADD VISIT
+    [:div {:class "visit-add "}
+      (when (have-person) [new-visit-form])
+    ]
+
+
+    ; NARROW 
+    [:div.row
+      [:div.inline [listselect allst :studies sels] ]
+      [:div.inline [listselect allvt :vtypes  sels] ]
+    ]
+   
+    ; ALL VISITS
+    (doall (map visit-idv-comp (filter 
+      #(and (some #{(:vtype %)} (:vtypes @sels))
+            (some #{(:study %)} (:studies @sels)))
+      (:visits @person-state) )))
+  ]
+)))
+
+; -------------------- CONTACTS
+(defonce contact-edit-state (atom {:edit false}))
+(defn toggle-contact-comp  []
+ [:a.btn.glyphicon.glyphicon-pencil
+    {:class (if (:edit @contact-edit-state) "btn-primary" "btn-default")
+     :on-click #(swap! contact-edit-state assoc :edit (not(:edit @contact-edit-state))) }
+ ]
+)
+
+(defonce person-contact (atom {:contacts []}))
+
+; ---- actions
+(defn update-contacts []
+  (h/get-json 
+    (str "person/" (str (:pid @person-state)) "/contacts") 
+    (fn[r] 
+      (js/console.log (str r))
+      (swap! person-contact assoc :contacts (:data r)) )  
+))
+
+(defn contact-note [pid cid note]
+ (h/post-json (str "contact/" cid "/note")
+         {:note note :pid pid}
+         (fn[r] (js/console.log "note" (str r)) (update-contacts)))
+)
+(defn contact-ban [pid cid note]
+ (h/post-json (str "contact/" cid "/ban")
+         {:note note :pid pid}
+         (fn[r] (js/console.log "ban" (str r)) (update-contacts)))
+)
+
+(defn add-contact [sendaway]
+  (js/console.log "adding as contact: " (str sendaway))
+   (h/post-json (str "person/" (:pid @person-state) "/addcontact")
+                sendaway
+                (fn[r] (js/console.log "response from add contact:" (str r))
+                       (update-contacts)))
+)
+
+
+;----- forms
+; notes for contact
+(defn contact-note-form [pid cid]
+ (let [notev (atom {:note ""}) ]
+  (fn[]
+  [:form
+    [:div.row
+      [:div.col-md-6 [:input.form-control
+       {
+        :value (:note @notev)
+        :on-change #(swap! notev assoc :note (-> % .-target .-value) ) 
+       }]]
+      [:a.btn.btn-success 
+        { :on-click #(contact-note pid cid (:note @notev))}
+        [:span.glyphicon.glyphicon-earphone  " "]]
+      [:a.btn.btn-danger  
+         { :on-click #(contact-ban pid cid (:note @notev))}
+         [:span.glyphicon.glyphicon-ban-circle " "]]
+    ]
+  ]
+)))
+
+
+; Contact - single contact info
+(def contacts-contact-form
+ [:div.contact-form
+  [:div.col-md-4 [:input.form-control {:field :text :id :ctype :placeholder "type" }] ]
+  [:div.col-md-4 [:input.form-control {:field :text :id :cvalue :placeholder "address/number"  }] ]
+ ]
+)
+
+(defn add-contacts-contact [p]
+ (let [ 
+    p   (select-keys p [:who :pid :relation])
+    doc (atom (merge {:ctype "" :cvalue ""} p))
+  ](fn[]
+  [:div.contact-contact
+   [:div.row 
+    [bind-fields  contacts-contact-form doc]
+    [:button.btn.btn-sm-default.glyphicon.glyphicon-plus
+      {:on-click #(add-contact @doc)} ]
+   ] 
+  ]
+)))
+
+
+; Contact - person
+(def contacts-person-form
+ [:div.row 
+   [:div.col-md-4
+    [:input.form-control {:field :text :id :who :placeholder "WHO"}]
+   ]
+   [:div.col-md-4
+    [:input.form-control {:field :text :id :relation :placeholder "relation" }]
+   ]]
+)
+
+(defn add-contacts-person [pid]
+ (let [pdoc (atom {:pid pid :who "" :relation ""})]
+  (fn[]
+    [:div.contact-person
+        [bind-fields contacts-person-form pdoc]
+        [(add-contacts-contact @pdoc)]
+    ]
+)))
+
+
+(defn contact-comp []
+(let [
+      info     ( :info  @person-state)
+      dfltcont [{:pid (:pid @person-state)
+                  :who (str (:fname info) " " (:lname info))
+                  :relation "Subject"}] 
+      contacts (:contacts @person-contact)
+      contacts (if (empty? contacts) dfltcont contacts)]
+  (fn[]
+  (js/console.log "contacts: " (str contacts) (str dfltcont))
+  [:div {:class "contacts"}
+    [:div.contact-toggle [toggle-contact-comp]   ]
+    ;[:div (str (:contacts @person-contact))]
+    (doall (for [p contacts ]
+      ^{:key (str "person-" (:who p))}
+      [:div.contact-person
+        [:h3 (:who p) [:span.id (:relation p)  ] ]
+        (when (:lastcontact p) [:div.id [:b "last contacted "] (:lastcontact p)] )
+        (for [c (:contacts p) ]
+          ^{:key (str "contact-" (:cid c))}
+          [:div.contact-contact
+            [:b (:ctype c)] " " [:i (:cvalue c) " " [:span.id (:cid c)]  ]
+             [:div.contact-note
+               [(contact-note-form (:pid p) (:cid c))]
+             ]
+            (when (:notes c) (for [n (:notes c)]
+             [:div.contact-note  
+               [:i (:note n)] [:b (:ra n) ] " @" [:span.id (:ndate n)]
+             ]))
+          ]
+        )
+        
+        (when (:edit @contact-edit-state) 
+         [add-contacts-contact p]
+        )
+    ]
+    ))
+    [:br]
+
+    (when (:edit @contact-edit-state) 
+     [add-contacts-person (:pid @person-state)]
+    )
+
+  ]
+)))
+
+;; (defn notes-comp []
+;;  (let [
+;;     notes (atom ({:notes ""}))
+;;     pid   (str (:pid @person-state))
+;;   ] (fn[]
+;; 
+;;    [:div pid ]
+;; ;  (js/console.log (str pid))
+;; ;
+;; ;  (h/get-json 
+;; ;    (str "person/" pid "/notes") 
+;; ;    (fn[r] (swap! notes assoc :notes r) )  )
+;; ;
+;; ;  [:ul 
+;; ;   [:li (str @notes) ]
+;; ;   ;(doall (for [n (:notes @notes)]
+;; ;   ;  [:li (:note n) (:ndate n) - (:ra n) ]
+;; ;
+;; ;   ;))
+;; ;  ]
+;; )))
+
+; ----------------------
+; NOTES
+(defonce person-notes (atom {:notes []}))
+(defn update-notes []
+  (h/get-json 
+    (str "person/" (str (:pid @person-state)) "/notes") 
+    (fn[r] 
+      (js/console.log (str r))
+      (swap! person-notes assoc :notes (:data r)) )  
+))
+
+(defn notes-comp []
+  ; show notes
+  [:ul 
+   ;[:li (str @person-notes) ]
+   (doall (for [n (:notes @person-notes)]
+     ^{:key (str "note-" (:nid n))}
+     [:li  (:note n) " @ " (:ndate n) [:br] " - " (:ra n)  ]
+ 
+   ))
+  ]
+)
+
+
+; watches to update contacts, notes (and visits?)
+(add-watch person-state :updatenotes  
+  (fn[w s p n] 
+   (when (not(= (:pid n) (:pid p))) (do
+     (update-notes)
+     (update-contacts)
+    ))))
 
 ; person component: person, visits, contacts
 (defn person-comp []
+ (let [
+  ss (atom {:view "Visits"})
+ ](fn[]
  [:div {:class "person"} 
 
    [person-info-comp ]
+   
+    [:ul {:class "nav nav-tabs"}
+     (doall (for [n ["Visits" "Contacts" "Notes"]]
+       ^{:key (str "nav" n)}
+       [:li (assoc {:role "presentation" } :class (if (= n (:view @ss)) "active" ""))
+           [:a {:on-click #(swap! ss assoc :view n) } n]
+       ]
+     ))
+    ]
+    (case (:view @ss)
+     "Visits"    [(visits-comp)]
+     "Contacts"  [(contact-comp)]
+     "Notes"     [notes-comp  ]
+     [:div "Unknown person tab"]
+    )
 
-   (when (have-person)
-     [:div {:class "visit-add col-md-5"}
-        [ (new-visit-form )  ]
-     ]
-   )
-
-   [:div {:class "visit-cntnr"} 
-   (map visit-idv-comp (:visits @person-state)) ]
  ]
-)
+)))

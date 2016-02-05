@@ -70,11 +70,15 @@
 
 
 ; * insert-note
+; * list-person-only-notes
 (defqueries "sql/note.sql" {:connection db-spec})
 ; * list-study
 ; * list-tasks
 ; * list-newest 
 (defqueries "sql/study.sql" {:connection db-spec})
+
+; * list-contacts
+(defqueries "sql/contact.sql" {:connection db-spec})
 ;;;;
 
 
@@ -213,6 +217,15 @@
 )
 
 
+(defn sql-add-error-next [prev-add-err nextfunc doc]
+ "chain sql commands: returns prev error or continues to next sql"
+ (if (nil? (:error prev-add-err ))
+    (merge prev-add-err (sql-add-error nextfunc doc ))
+    prev-add-err 
+ )
+)
+
+
 (defn pep-search
   "search subjects and get visit summaries"
   [searchmap]
@@ -325,10 +338,19 @@
    [:html
     [:head
      ; bootstrap
-     [:link { :rel "stylesheet"
-              :href "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css" 
-              :integrity "sha512-dTfge/zgoMYpP7QbHy4gWMEGsbsdZeCXz7irItjcC3sPUFtf0kuFbDz/ixG7ArTxmDjLXDmezHubeNikyKGVyQ==" 
-              :crossorigin "anonymous" } ]
+     [:link {:rel "stylesheet" 
+         :href "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" 
+         :integrity "sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7"
+         :crossorigin "anonymous"}]
+
+     [:link {:rel "stylesheet" 
+         :href "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap-theme.min.css" 
+         :integrity "sha384-fLW2N01lMqjakBkx3l/M9EahuwpSfeNvV63J5ezn3uZzapT0u7EYsXMjQV+0En5r" 
+         :crossorigin "anonymous"}]
+     ;[:link { :rel "stylesheet"
+     ;         :href "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css" 
+     ;         :integrity "sha512-dTfge/zgoMYpP7QbHy4gWMEGsbsdZeCXz7irItjcC3sPUFtf0kuFbDz/ixG7ArTxmDjLXDmezHubeNikyKGVyQ==" 
+     ;         :crossorigin "anonymous" } ]
      ; boot strap js depends
      [:script {:src "https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"}]
      [:script {:src "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js" 
@@ -400,6 +422,37 @@
 ))
 
 
+; ------------------
+(defn add-contact [p]
+ "add contact, coming autheticated from auth-post"
+ (sql-add-error insert-contact! (select-keys p [:pid :ctype :cvalue :who :relation]))
+)
+
+(defn contact-note [p] 
+"add a note, assoc it with a contact. done in 2 steps. if note inserts fails, return there"
+ (println "contact-note: " (str p))
+ (let [
+      note (sql-add-error insert-note-now<! (select-keys p [:pid :ra :note]))
+    ]
+    ; only run contact-note! if no error in note
+    ;(if (nil? (:error note))
+    ;  (merge note (sql-add-error contact-note! {:cid (:cid p) :nid (:nid note)}))
+    ;  note
+    ;)
+    (sql-add-error-next note contact-note! {:cid (:cid p) :nid (:nid note)})
+))
+(defn contact-ban [p] 
+"add a note, assoc it with a contact. done in 2 steps. if note inserts fails, return there"
+ (let [
+      note  (sql-add-error           insert-note-now<! (select-keys p [:pid :ra :note]))
+      cn    (sql-add-error-next note contact-note!     {:cid (:cid p) :nid (:nid note)})
+     ]
+     (sql-add-error-next cn contact-nogood! {:cid (:cid p)})
+))
+
+; ------------------
+
+
 (defn add-summary-visit [params]
 " add visit, visit action, visit note, visit study with sql trigger on view.
   need pid study vtype vtimestamp visitno note study cohort,ra and dur.
@@ -430,7 +483,7 @@
  (println p)
 
  (insert-visitaction-now! (merge {:action "noshow"} (select-keys p [:vid :ra]) ))
- (def nid (:nid (insert-note-now<! (select-keys p [:vid :ra :note] )) ))
+ (def nid (:nid (insert-note-now<! (select-keys p [:pid :ra :note] )) ))
  (insert-visitnote<! {:vid (:vid p) :nid nid})
 
 )
@@ -514,7 +567,22 @@
   (GET "/study/tasks"   [] (json-response             (list-tasks) ))
   (GET "/study/etypes"  [] (json-response             (list-etypes) ))
 
-  ;;visits
+  ;; NOTES
+  ;(GET "/person/:pid/notes" [pid] (json-response (sql-add-error list-person-only-notes  {:pid pid}) ))
+  (GET "/person/:pid/notes" [pid] 
+      (->> {:pid pid} (sql-add-error list-person-only-notes) json-response) )
+
+
+  ;; CONTACTS
+  (GET "/person/:pid/contacts" [pid] 
+      (->> {:pid pid} (sql-add-error list-contacts) json-response) )
+  ; edit
+  (auth-post "/person/:pid/addcontact" add-contact )
+
+  (auth-post "/contact/:cid/ban"  contact-ban )
+  (auth-post "/contact/:cid/note" contact-note )
+
+  ;; VISITS
   (GET "/person/:pid/visits" [pid] (json-response (visit-search pid) ))
 
 
