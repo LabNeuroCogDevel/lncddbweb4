@@ -227,7 +227,7 @@
 
 (defn new-visit-form []
  (let [
-    showadd (atom false)
+    showadd (atom {:edit false})
     doc (atom {:visitday {:year 2016 :day 01 :month 01}  
                 :time "13:00"
                 :visitno 1
@@ -240,14 +240,14 @@
   (fn []
    [:div.visit-form
 
-    [:div.visit-form-toggle 
-      [:button.form-control.btn-info
-        {:on-click #(do (js/console.log @showadd) (swap! showadd not)) } 
-          "toggle add visit"
-    ] ]
+    ;[:div.visit-form-toggle 
+    ;  [:button.form-control.btn-info
+    ;    {:on-click #(do (js/console.log (str @showadd)) (swap! showadd not)) } 
+    ;      "toggle add visit"
+    ;] ]
 
-    (when  (and have-person @showadd)
-     [:div
+    (when  (and have-person (:edit @h/toggle-edit-state))
+     [:div.visit-edit
        [bind-fields visit-form-date doc]
        [:div.btn.btn-default {:on-click #(add-visit! @doc) } "Add Visit" ]
        ;[:div (edn->hiccup @doc)]
@@ -424,12 +424,6 @@
 
 ; -------------------- CONTACTS
 (defonce contact-edit-state (atom {:edit false}))
-(defn toggle-contact-comp  []
- [:a.btn.glyphicon.glyphicon-pencil
-    {:class (if (:edit @contact-edit-state) "btn-primary" "btn-default")
-     :on-click #(swap! contact-edit-state assoc :edit (not(:edit @contact-edit-state))) }
- ]
-)
 
 (defonce person-contact (atom {:contacts []}))
 
@@ -540,7 +534,6 @@
   (fn[]
   (js/console.log "contacts: " (str contacts) (str dfltcont))
   [:div {:class "contacts"}
-    [:div.contact-toggle [toggle-contact-comp]   ]
     ;[:div (str (:contacts @person-contact))]
     (doall (for [p contacts ]
       ^{:key (str "person-" (:who p))}
@@ -561,14 +554,14 @@
           ]
         )
         
-        (when (:edit @contact-edit-state) 
+        (when (:edit @h/toggle-edit-state) 
          [add-contacts-contact p]
         )
     ]
     ))
     [:br]
 
-    (when (:edit @contact-edit-state) 
+    (when (:edit  @h/toggle-edit-state) 
      [add-contacts-person (:pid @person-state)]
     )
 
@@ -608,15 +601,37 @@
       (swap! person-notes assoc :notes (:data r)) )  
 ))
 
+(def person-note-form
+ [:input.form-control {:field :text :id :note :placeholder "NOTE"}]
+)
+(defn add-person-note-comp [pid]
+(let [
+   url (str "/person/" pid "/note")
+   doc (atom {:note ""})
+ ](fn []
+  [:div.person-note-form.row
+    [:div.col-md-5 [bind-fields person-note-form doc] ]
+    [:button.btn.btn-sm-default.glyphicon.glyphicon-plus
+      {:on-click #(h/post-json url  @doc (fn[r] (update-notes) ))} ]
+  ]
+)))
+
 (defn notes-comp []
-  ; show notes
-  [:ul 
-   ;[:li (str @person-notes) ]
-   (doall (for [n (:notes @person-notes)]
-     ^{:key (str "note-" (:nid n))}
-     [:li  (:note n) " @ " (:ndate n) [:br] " - " (:ra n)  ]
+  [:div.notes-comp
+    ; add a note
+    (when (:edit @h/toggle-edit-state)
+        [(add-person-note-comp (:pid @person-state) )]
+    )
+    ; show notes
+    [:ul 
+
+     ;[:li (str @person-notes) ]
+     (doall (for [n (:notes @person-notes)]
+       ^{:key (str "note-" (:nid n))}
+       [:li.note  (:note n) " @ " (:ndate n) [:br] " - " (:ra n)  ]
  
-   ))
+     ))
+    ]
   ]
 )
 
@@ -638,6 +653,7 @@
 
    [person-info-comp ]
    
+    [h/toggle-edit]
     [:ul {:class "nav nav-tabs"}
      (doall (for [n ["Visits" "Contacts" "Notes"]]
        ^{:key (str "nav" n)}

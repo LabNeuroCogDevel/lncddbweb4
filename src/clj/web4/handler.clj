@@ -71,6 +71,7 @@
 
 ; * insert-note
 ; * list-person-only-notes
+; * insert-person-note!
 (defqueries "sql/note.sql" {:connection db-spec})
 ; * list-study
 ; * list-tasks
@@ -385,6 +386,10 @@
     (t/plus (t/minutes durmin) )
  )
 ))
+(defn- unparse-gcal [t]
+ "make gcal date"
+  (tf/unparse (tf/formatter "yyyy-MM-dd'T'HH:mm:ss") t )
+)
 
 (defn add-calendar-visit [vid ra dur]
  "add a visit to the calendar
@@ -411,9 +416,8 @@
       gevent (gcal/add-calendar-time-event 
                  google-ctx title desc 
                  ""  ;location
-                 (tf/unparse (tf/formatter "yyyy-MM-dd'T'HH:mm:ss") t )
-                 (tf/unparse (tf/formatter "yyyy-MM-dd'T'HH:mm:ss") 
-                    (add-dur t (read-string dur) ))
+                 (unparse-gcal t )
+                 (unparse-gcal (add-dur t (read-string (str dur) ) ))
                  []) ; people invited
  ]
 
@@ -421,6 +425,21 @@
  (update-googleid<! {:vid (:vid v) :googleuri (get gevent "id")})
 ))
 
+; -----------------
+
+(defn add-person-note [p] 
+"add a note, assoc it with a person. done in 2 steps. if note inserts fails, return there"
+ (println "add-person-note: " (str p))
+ (let [
+      note (sql-add-error insert-note-now<! (select-keys p [:pid :ra :note]))
+    ]
+    ; only run contact-note! if no error in note
+    ;(if (nil? (:error note))
+    ;  (merge note (sql-add-error contact-note! {:cid (:cid p) :nid (:nid note)}))
+    ;  note
+    ;)
+    (sql-add-error-next note insert-person-note! {:pid (:pid p) :nid (:nid note)})
+))
 
 ; ------------------
 (defn add-contact [p]
@@ -466,7 +485,7 @@
 
    ; add to google cal when we've had no error inserting visit
    (when (= (:error v) nil)
-     (println "running: (add-calendar-visit " (:vid v) (:ra params) (:dur params) )
+     (println "running: (add-calendar-visit " (:vid v) (:ra params) (:dur params) ")" )
      (let [ gevent (add-calendar-visit (:vid v) (:ra params) (:dur params) ) ] 
       (assoc v :googleuri (gevent :googleuri))
    ))
@@ -572,6 +591,7 @@
   (GET "/person/:pid/notes" [pid] 
       (->> {:pid pid} (sql-add-error list-person-only-notes) json-response) )
 
+  (auth-post "/person/:pid/note" add-person-note)
 
   ;; CONTACTS
   (GET "/person/:pid/contacts" [pid] 

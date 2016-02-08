@@ -38,7 +38,7 @@ h3 {
 .contact-note > form {display: none}
 .contact-contact:hover > .contact-note > form {display: block}
 
-.contact-toggle {float:right}
+.edit-toggle {float:right; clear:both}
 
 /* */
 
@@ -78,6 +78,11 @@ tr {
  max-width: 500px
 }
 
+/*-----------*/
+.visit-edit {
+ padding:1em;
+ margin:1em;
+}
 .visit-cntnr {
  /*text-align:right;*/
  display: inline-block;

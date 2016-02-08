@@ -65,6 +65,16 @@
        :handler (fn[r]  (do (m/add-error-state! r) (handlefn r)) ))
 )
 
+; ----
+(defonce toggle-edit-state (atom {:edit false}))
+(defn toggle-edit  []
+"toggle :edit key in doc true<->false"
+(let [doc toggle-edit-state]
+ [:a.btn.glyphicon.glyphicon-pencil.edit-toggle 
+    {:class (if (:edit @doc) "btn-primary" "btn-default")
+     :on-click #(swap! doc assoc :edit (not(:edit @doc))) }
+ ]
+))
 
 ; ---- things to autocomplete
 (defonce autocomplete-lists (atom {}))
