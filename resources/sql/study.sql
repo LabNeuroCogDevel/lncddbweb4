@@ -13,6 +13,10 @@ select study,task,modes from task natural join study_task
 -- name: list-etypes
 select etype from enroll group by etype order by count(etype) desc
 
---name: list-newest
+-- name: list-newest
 select max(id::float)+1 as id from enroll where etype ilike :etype 
 
+-- name: list-drops
+-- select dropcode and droplevel from database
+-- maybe include 'where dropcode not like nodrop;'
+select dropcode,droplevel from dropcode order by droplevel;

@@ -79,13 +79,16 @@
 ; ---- things to autocomplete
 (defonce autocomplete-lists (atom {}))
 (defn get-autocomplete-lists [opttyp]
-   (GET (str "/study/" (name opttyp)) 
+   (GET (str "/list/" (name opttyp)) 
        :keywords? true :response-format :json 
-       :handler #(swap! autocomplete-lists assoc opttyp %))
+       :handler (fn[r] 
+         (swap! autocomplete-lists assoc opttyp r)
+         (js/console.log "updated add visit form options: " (str @autocomplete-lists))
+        ))
 )
 (defn get-autocomplete-lists! []
-  (doseq [opttyp [:cohorts :studies :vtypes :tasks :etypes ] ] (get-autocomplete-lists opttyp))
-  (js/console.log "updated add visit form options: " (str @autocomplete-lists))
+  (doseq [opttyp [:cohorts :studies :vtypes :tasks :etypes :drops] ]
+     (get-autocomplete-lists opttyp))
 )
 
 ; get part given text (part like :tasks, :cohorts, or etc)

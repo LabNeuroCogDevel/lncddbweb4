@@ -109,6 +109,7 @@
                    :dependencies [[ring/ring-mock "0.3.0"]
                                   [ring/ring-devel "1.4.0"]
                                   [lein-figwheel "0.5.0-6"]
+                                  [ring/ring-jetty-adapter "1.4.0"]
 
                                   ; issue with stringreader
                                   ; https://github.com/clojure-emacs/refactor-nrepl/issues/53
@@ -121,6 +122,7 @@
                              [refactor-nrepl "1.1.0"]
                              [cider/cider-nrepl "0.10.2" :exclusions [org.clojure/clojure] ]
                              [lein-figwheel "0.5.0-6"]
+                             [lein-ring "0.9.7"]
                              [lein-cljsbuild "1.1.0"]]
 
                    :injections [(require 'pjstadig.humane-test-output)

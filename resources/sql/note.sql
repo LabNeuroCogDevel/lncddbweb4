@@ -12,3 +12,10 @@ insert into visit_note (vid,nid) values (:vid::integer,:nid::integer)
 -- name: insert-person-note!
 insert into person_note (pid,nid) values (:pid::integer,:nid::integer)
 
+
+-- name: insert-drop-view<!
+--  need pid vid dropcode ra and note, vid can be null
+insert into drops_view 
+   (pid,vid,dropcode,ra,note) values 
+   (:pid::integer,:vid::integer,:dropcode,:ra,:note) 
+ 

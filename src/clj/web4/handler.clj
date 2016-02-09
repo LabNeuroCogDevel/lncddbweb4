@@ -72,10 +72,13 @@
 ; * insert-note
 ; * list-person-only-notes
 ; * insert-person-note!
+; * insert-drop-view<!
 (defqueries "sql/note.sql" {:connection db-spec})
 ; * list-study
 ; * list-tasks
 ; * list-newest 
+; * list-etypes
+; * list-drops
 (defqueries "sql/study.sql" {:connection db-spec})
 
 ; * list-contacts
@@ -580,11 +583,21 @@
   (POST "/person/:pid/edit" {params :params} (json-response (person-edit  params) ))
 
   ;; lists for autocompleting
-  (GET "/study/studies" [] (json-response (map :study (list-studies)) ))
-  (GET "/study/cohorts" [] (json-response (map :cohort (list-cohorts)) ))
-  (GET "/study/vtypes"  [] (json-response (map :vtype (list-visittypes)) ))
-  (GET "/study/tasks"   [] (json-response             (list-tasks) ))
-  (GET "/study/etypes"  [] (json-response             (list-etypes) ))
+  ;;;; legacy -- use study as prefix
+  (GET "/study/studies"   [] (json-response (map :study (list-studies)) ))
+  (GET "/study/cohorts"   [] (json-response (map :cohort (list-cohorts)) ))
+  (GET "/study/vtypes"    [] (json-response (map :vtype (list-visittypes)) ))
+  (GET "/study/tasks"     [] (json-response             (list-tasks) ))
+  (GET "/study/etypes"    [] (json-response             (list-etypes) ))
+
+
+  ; new -- use list as prefix
+  (GET "/list/drops"     [] (json-response             (list-drops)  ))
+  (GET "/list/studies"   [] (json-response (map :study (list-studies)) ))
+  (GET "/list/cohorts"   [] (json-response (map :cohort (list-cohorts)) ))
+  (GET "/list/vtypes"    [] (json-response (map :vtype (list-visittypes)) ))
+  (GET "/list/tasks"     [] (json-response             (list-tasks) ))
+  (GET "/list/etypes"    [] (json-response             (list-etypes) ))
 
   ;; NOTES
   ;(GET "/person/:pid/notes" [pid] (json-response (sql-add-error list-person-only-notes  {:pid pid}) ))
@@ -592,6 +605,12 @@
       (->> {:pid pid} (sql-add-error list-person-only-notes) json-response) )
 
   (auth-post "/person/:pid/note" add-person-note)
+
+  ;; DROP
+  ; need pid vid dropcode ra and note, pid or vid can be null but not both
+  (auth-post "/drop" 
+    (fn[p] (sql-add-error insert-drop-view<! (merge {:pid nil :vid nil} (select-keys p [:pid :vid :dropcode :ra :note] )))
+  ))
 
   ;; CONTACTS
   (GET "/person/:pid/contacts" [pid] 

@@ -74,6 +74,50 @@
 ;     (js/console.log "set-visit! setting checkin-data -- resonse:" (first (:data response) ))
 ;)))
 
+; ---- drops
+(declare update-notes)
+(defn make-drop-comp [exclude & [vid] ]
+ "add drop selection box"
+ (let [doc (atom {:pid (:pid @person-state) :dropcode "" :note "" :vid vid})]
+ (fn[]
+ (when (and (have-person) (:edit @h/toggle-edit-state  ))
+      [:div.drop
+       [:select
+          {:on-change #(swap! doc assoc :dropcode (-> % .-target .-value) )  
+           :value (:dropcode @doc) }
+
+         ; all drop options
+         (do(for [d (concat [{:dropcode "" :droplevel ""}] 
+                   (->> @h/autocomplete-lists
+                   :drops
+                   (filter #(not(contains? exclude (:droplevel %) ) ) )))]
+         ^{:key (:dropcode d)}
+         [:option {:value (:dropcode d) } (str (:dropcode d) " " (:droplevel d))  ]
+       ))]
+
+
+      (when (not(= "" (:dropcode @doc)))
+       [:input.form-control
+          {:on-change #(swap! doc assoc :note (-> % .-target .-value) )  
+           :placeholder "drop why?"
+           :value (:note @doc) }
+       ]
+      )
+      ;; buttun when we have a note
+      (when (not(= "" (:note @doc)))
+        [:a.btn.btn-sm.btn-danger.glyphicon.glyphicon-ban-circle 
+          {:on-click #(h/post-json 
+             "/drop"  
+             @doc 
+             (fn[r] (js/console.log "drop!" (str r)) (update-notes))) 
+          }
+        " "]
+      )
+     ]
+
+ )
+)))
+
 ;--- note
 (defn render-note [ni]
  ^{:key (:nid ni)} 
@@ -246,7 +290,7 @@
     ;      "toggle add visit"
     ;] ]
 
-    (when  (and have-person (:edit @h/toggle-edit-state))
+    (when  (and (have-person) (:edit @h/toggle-edit-state))
      [:div.visit-edit
        [bind-fields visit-form-date doc]
        [:div.btn.btn-default {:on-click #(add-visit! @doc) } "Add Visit" ]
@@ -316,6 +360,8 @@
     ; NOTES
     [:div {:class "visitnotes"}
        (map #(render-note % ) (visit :notes) )
+
+        [(make-drop-comp #{"nodrop"} (visit :vid))]
     ]
 
     ; STRUCT
@@ -356,8 +402,16 @@
   ]
 
   ; NAME
-  [:h3.name (str (:fname info) " " (:lname info)) ] 
+  [:h3.name (str (:fname info) " " (:lname info)) 
+  
+    ; exclude visit sometasks and nodrop from list
+    [:br]
+    [:div.right.small [make-drop-comp #{"visit" "sometasks" "nodrop"} ] ]
+  ] 
+
+  
   [:br]
+
 
   ;[:div (edn->hiccup (:info @person-state)) ]
 
@@ -408,11 +462,13 @@
     ]
 
 
-    ; NARROW 
-    [:div.row
-      [:div.inline [listselect allst :studies sels] ]
-      [:div.inline [listselect allvt :vtypes  sels] ]
-    ]
+    ; NARROW  by study or visit type 
+    (when (not(empty? allst))
+     [:div.row
+       [:div.inline [listselect allst :studies sels] ]
+       [:div.inline [listselect allvt :vtypes  sels] ]
+     ]
+    )
    
     ; ALL VISITS
     (doall (map visit-idv-comp (filter 
@@ -634,6 +690,8 @@
     ]
   ]
 )
+
+
 
 
 ; watches to update contacts, notes (and visits?)
