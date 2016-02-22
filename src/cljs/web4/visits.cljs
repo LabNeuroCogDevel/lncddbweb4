@@ -43,7 +43,7 @@
 
 (defn set-person-visits! [pid]
   (js/console.log  "setting person info for " pid)
-   (GET (str "/person/" pid "/visits" ) 
+   (GET (str "person/" pid "/visits" ) 
        :keywords? true 
        :response-format :json 
        :handler (fn [response] 
@@ -51,7 +51,7 @@
             (swap! person-state assoc :pid pid)
             (swap! person-state assoc :visits response)
             ; get persons info
-            (GET (str "/people?pid=" pid)
+            (GET (str "people?pid=" pid)
                  :keywords? true 
                  :response-format :json 
                  :handler (fn [response] 
@@ -107,7 +107,7 @@
       (when (not(= "" (:note @doc)))
         [:a.btn.btn-sm.btn-danger.glyphicon.glyphicon-ban-circle 
           {:on-click #(h/post-json 
-             "/drop"  
+             "drop"  
              @doc 
              (fn[r] (js/console.log "drop!" (str r)) (update-notes))) 
           }
@@ -130,15 +130,15 @@
 
 ; show tasks tasks -- link if has data
 (defn visit-task-idv-comp [t]
- 
- (def attr (if (:hasdata t) 
-   (hash-map :on-click #(h/gotohash (str "/task/" (:vtid t) )  ) 
-             :class "visittask link"
-   )
-   (hash-map :class "visittask" )
- ))
+ (let [
+  hasdata(if (or (:hasfiles t) (:hasdata t) )
+          (hash-map :on-click #(h/gotohash (str "task/" (:vtid t) )  ) 
+                    :class "visittask link")
+          (hash-map :class "visittask" ))
+ ]
 
- ^{:key (:vtid t)} [:div attr (:task t) ]
+ ^{:key (:vtid t)} [:div hasdata (:task t) ]
+ )
 )
 
 (def idv-vid-form 
@@ -150,7 +150,7 @@
 
 ; do /vist/id/{noshow,cancel,resched}
 (defn update-visit [how doc]
-  (POST (str "/visit/" (:vid doc) "/" how  )
+  (POST (str "visit/" (:vid doc) "/" how  )
        :keywords? true
        :format :json
        :response-format :json 
@@ -190,7 +190,7 @@
  (js/console.log "time:"  timestamp "\nsenddat: " (str senddata) "\ndoc:" (str doc))
 
  (when (have-person)
-  (POST (str "/person/" (:pid @person-state) "/visit"  )
+  (POST (str "person/" (:pid @person-state) "/visit"  )
        :keywords? true
        :format :json
        :response-format :json 
@@ -662,7 +662,7 @@
 )
 (defn add-person-note-comp [pid]
 (let [
-   url (str "/person/" pid "/note")
+   url (str "person/" pid "/note")
    doc (atom {:note ""})
  ](fn []
   [:div.person-note-form.row

@@ -1,5 +1,11 @@
 (ns web4.core
-    (:require [reagent.core :as reagent :refer [atom]]
+    (:require 
+
+              ; dev
+              [devcards.core :as dc]
+
+              ; reagent
+              [reagent.core :as reagent :refer [atom]]
               [reagent.session :as session]
               [secretary.core :as secretary :include-macros true]
               [goog.events :as events]
@@ -27,9 +33,16 @@
               [web4.addstudy :refer [ addstudy-page ] ]
               [web4.checkin :as checkin :refer [ checkin-page ] ]
               [web4.search :as search :refer [ search-page ] ]
+              [web4.decks :as decks ]
+              
 
     )
-    (:import goog.History))
+    (:import goog.History)
+
+    ; devcars -- done by figwheel
+    ; (:require-macros [devcards.core :refer [defcard]])
+)
+
 
 
 ;;; settings for postgrest haskell server
@@ -142,4 +155,11 @@
 
 (defn init! []
   (hook-browser-navigation!)
-  (mount-root))
+  ; run main app when we have #app. otherwise don't!
+  ; we want to use devcards when there is no #app
+  (if (.getElementById js/document "app")
+    (mount-root)
+    ;call devcards
+    (dc/start-devcard-ui!)
+   )
+)

@@ -122,6 +122,17 @@
 
 ;;;;
 
+; routing
+; handle url  is '/web4/...' or '/...' depending on the host
+;(defn h-url [url]
+;   (str (if (re-matches #".*arnold.*" (.. java.net.InetAddress getLocalHost getHostName))
+;         "/web4"
+;         "")
+;         url)
+;)
+
+;;;;
+
 (defn listsubj 
   "list of all subjects matching subjname"
   [subjname]
@@ -157,6 +168,7 @@
 
   (assoc (assoc v :tasks ts ) :notes nt)
 )
+
 
 (defn visit-search
   "look for visits given a pid"
@@ -554,8 +566,20 @@
              friend/authenticated) )
 )
 
+(def devcard-page 
+ (html
+   [:html
+    [:body
+     [:div#devcards ]
+     (include-js "js/app.js")
+    ]
+   ]
+ )
+)
+
 (defroutes routes
   (GET "/" [] (friend/authenticated home-page ))
+  (GET "/devcard" [] devcard-page )
   ;(GET "/" [] home-page )
 
   (GET "/whoami" req
@@ -625,9 +649,9 @@
   (GET "/person/:pid/visits" [pid] (json-response (visit-search pid) ))
 
 
-  (GET "/visit_task/:vtid" [vtid] (json-response (visit-task vtid) ))
-  (GET "/visit/:vid" [vid] (json-response (sql-add-error get-idv-visit {:vid vid}) ))
-  (GET "/test/:pid/:vtimestamp" {params :params} (json-response (get-test-age params) ))
+  (GET "/visit_task/:vtid"  [vtid] (json-response (visit-task vtid) ))
+  (GET "/visit/:vid"  [vid] (json-response (sql-add-error get-idv-visit {:vid vid}) ))
+  (GET "/test/:pid/:vtimestamp"  {params :params} (json-response (get-test-age params) ))
 
   ;; INSERT/POST
   (auth-post "/person/:pid/visit" add-summary-visit)
@@ -635,6 +659,8 @@
   ; check in  -- select tasks, score visit
   (auth-post "/visit/:vid/checkin" visit-checkin)
 
+  ; add files
+                                  
   ; EDIT
   (auth-post "/visit/:vid/noshow"  noshow-visit )
   (auth-post "/visit/:vid/cancel"  cancel-visit )

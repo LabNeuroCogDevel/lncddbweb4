@@ -47,6 +47,7 @@
 ; dispatch a url and set the address bar to that
 ; url is what comes after 'http.../#'
 (defn gotohash [url]
+ (js/console.log "sending browser to " url)
  (aset (.-location js/window) "hash" url)
  (secretary/dispatch! url)
 )
@@ -79,7 +80,7 @@
 ; ---- things to autocomplete
 (defonce autocomplete-lists (atom {}))
 (defn get-autocomplete-lists [opttyp]
-   (GET (str "/list/" (name opttyp)) 
+   (GET (str "list/" (name opttyp)) 
        :keywords? true :response-format :json 
        :handler (fn[r] 
          (swap! autocomplete-lists assoc opttyp r)

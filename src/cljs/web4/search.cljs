@@ -131,7 +131,7 @@
  (def dob (apply tc/date-time (vals (select-keys (doc :dob ) [:year :month :day ] )) ))
  (def sendpdata (merge (select-keys doc [:fname :lname :sex :hand :source ])  {:dob (str dob)} ) )
  (js/console.log (str "sending" sendpdata) )
- (POST "/person"
+ (POST "person"
        :keywords? true
        :format :json
        :response-format :json 
@@ -182,7 +182,7 @@
 
 (defn search! [params results routefn]
  ;(let [url (ajax.core/uri-with-params "/people" params) ] ;broke with update?
- (let [url (str "/people?" (ajax.core/params-to-str params)) ]
+ (let [url (str "people?" (ajax.core/params-to-str params)) ]
   (js/console.log "search pep with: " (str url) 
                   "\nurl: " url )
   (h/get-json url
@@ -300,6 +300,6 @@
 )
 
 
-(secretary/defroute searchonlyrt "/search" [query-params]
+(secretary/defroute searchonlyrt "search" [query-params]
  (h/get-autocomplete-lists! )
  (session/put! :current-page #(search-page query-params )) )

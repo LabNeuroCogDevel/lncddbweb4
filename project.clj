@@ -70,6 +70,9 @@
                  ;ldap auth
                  [clj-ldap-auth "0.1.1"]
                  [org.clojars.pntblnk/clj-ldap "0.0.9"]
+
+                 ; debuging/testing/live
+                 [devcards "0.2.1-6"]
                 ]
 
   :plugins [[lein-environ "1.0.1"]
@@ -97,7 +100,19 @@
   ;{:assets
   ;  {"resources/public/css/site.min.css" "resources/public/css/site.css"}}
 
-  :cljsbuild {:builds {:app {:source-paths ["src/cljs" "src/cljc"]
+  :cljsbuild {:builds
+                     #_{:id "devcards"
+                        :source-paths ["src"]
+                        :figwheel { :devcards true } ;; <- note this
+                        :compiler { :asset-path "js/out"
+                                    :output-to  "resources/public/js/devcards.js"
+                                    :output-dir "resources/public/js/compiled/devcards_out"
+                                    :source-map-timestamp true }}
+
+  
+                      {:app {:source-paths ["src/cljs" "src/cljc"]
+                             :figwheel { :devcards true }
+                             :devcards true
                              :compiler {:output-to     "resources/public/js/app.js"
                                         :output-dir    "resources/public/js/out"
                                         :asset-path   "js/out"
@@ -123,7 +138,7 @@
                              [cider/cider-nrepl "0.10.2" :exclusions [org.clojure/clojure] ]
                              [lein-figwheel "0.5.0-6"]
                              [lein-ring "0.9.7"]
-                             [lein-cljsbuild "1.1.0"]]
+                             [lein-cljsbuild "1.1.1"]]
 
                    :injections [(require 'pjstadig.humane-test-output)
                                 (pjstadig.humane-test-output/activate!)]
@@ -143,6 +158,7 @@
                                               :compiler {:main "web4.dev"
                                                          :source-map true}}
                                        ;:figwheel {:websocket-host "10.145.65.240"}
+                                       :figwheel {:devcarsd true}
                                        }
                                         
 }}

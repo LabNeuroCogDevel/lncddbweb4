@@ -25,11 +25,24 @@ select n.*,dc.droplevel from note n
   left join dropcode dc on dc.dropcode = d.dropcode
   where vn.vid=:vid 
 
--- name: list-tasks-by-vid
+-- name: list-tasks-by-vid-old
 -- get tasks from a vid
-select vtid,task,measures is not null as hasdata 
- from visit_task 
+select vtid,vt.task,t.measures is not null as hasdata, t.files is not null as hasfiles
+ from visit_task vt
+  join task t on vt.task=t.task
  where vid=:vid 
+
+--name: list-tasks-by-vid
+-- need :vtid, gives havefiles and havemeasures, expectedfiles expectedmeasures
+select 
+ vtid,
+ (select json_agg("key") from jsonb_each(vt.files) where "value" is not null  ) as havefiles,
+ (select json_agg("key") from jsonb_each(vt.measures) where "value" is not null ) as havemeasures,
+ (select json_agg("key") from jsonb_each(t.files)  ) as expectedfiles,
+ t.measures as expectedmeasures,
+from visit_task vt
+join task t on vt.task=t.task
+where vtid = :vtid;
 
 --name: get-visit-task-by-id
 select p.pid,v.vid,v.age,v.vtimestamp,p.fname,p.lname,p.sex,vt.* 
